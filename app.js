@@ -243,7 +243,7 @@ function viewPlayers() {
   const st = computeStats(D.games);
   const q = S.filter.toLowerCase();
   const match = p => p.active && (!q || p.name.toLowerCase().includes(q) || String(p.no ?? '') === q || (p.pos || '').toLowerCase().includes(q));
-  const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b>${p.pos ? `<em class="pp">${esc(p.pos)}</em>` : ''}<span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · 🔥' + streakOf(p.id).cur : ''}</span></div></div>`; };
+  const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b>${q && p.pos ? `<em class="pp">${esc(p.pos)}</em>` : ''}<span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · 🔥' + streakOf(p.id).cur : ''}</span></div></div>`; };
   const pl = D.players.filter(p => !p.role && !p.guest && match(p)).sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || a.name.localeCompare(b.name));
   const tr = D.players.filter(p => p.role && !p.guest && match(p));
   const gs = D.players.filter(p => p.guest && match(p));
