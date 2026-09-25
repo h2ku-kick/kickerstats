@@ -37,7 +37,7 @@ function initialsSvg(name) {
 }
 const face = id => `img/f/${id}.jpg`;
 const portrait = id => `img/p/${id}.jpg`;
-const imgTag = (src, id, cls = '') => `<img src="${src}" alt=""${src.includes('/p/') ? ' loading="lazy"' : ''} data-fb="${esc(player(id).name)}" ${cls ? `class="${cls}"` : ''}>`;
+const imgTag = (src, id, cls = '') => `<img src="${src}" alt="" data-fb="${esc(player(id).name)}" ${cls ? `class="${cls}"` : ''}>`;
 document.addEventListener('error', e => {
   const t = e.target;
   if (t.tagName === 'IMG' && t.dataset.fb && !t.dataset.done) { t.dataset.done = 1; t.src = initialsSvg(t.dataset.fb); }
