@@ -71,15 +71,15 @@ function buildArticle(ctx, variant) {
 
   const deck = one([
     `${games.length} Spiele, ${goals} Tore, ${scorers.length} verschiedene Torschützen – die große Bilanz des Trainingskicks im ${mName}.`,
-    `Was im ${mName} nach dem Handballtraining auf dem Fußballfeld passiert ist: alle Zahlen, alle Helden, alle Serien.`,
+    `Ob vor dem Training oder mittendrin: Was im ${mName} beim Kicken passiert ist – alle Zahlen, alle Helden, alle Serien.`,
     `Der Monatsrückblick: ${goals} Treffer in ${games.length} Partien – und ein klarer Gewinner.`
   ]);
 
   // ---------- Vorspann ----------
   const lead = one([
-    `Herrenberg. Wenn die Handbälle weggeräumt sind, beginnt für die 1. Männer der SG H2Ku der eigentliche Wettkampf: Im ${mName} wurde ${games.length === 1 ? 'einmal' : games.length + '-mal'} gekickt, und dabei fielen stolze ${goals} Tore – im Schnitt ${num(avg)} pro Spiel.`,
+    `Herrenberg. Ob vor dem Training oder mittendrin – sobald bei den 1. Männern der SG H2Ku der Fußball rollt, wird es ernst: Im ${mName} wurde ${games.length === 1 ? 'einmal' : games.length + '-mal'} gekickt, und dabei fielen stolze ${goals} Tore – im Schnitt ${num(avg)} pro Spiel.`,
     `Herrenberg. ${games.length} Trainingskicks, ${goals} Tore und jede Menge Ehrgeiz: Der ${mName} hatte es in sich. Mit durchschnittlich ${num(avg)} Treffern pro Partie ging es alles andere als defensiv zu.`,
-    `Herrenberg. Die Torwarthandschuhe blieben beim Fußball meist im Schrank – anders lässt sich die Ausbeute von ${goals} Toren in ${games.length} Spielen kaum erklären. Macht ${num(avg)} Treffer pro Kick.`
+    `Herrenberg. Mal vor dem Training, mal mittendrin: Die Torwarthandschuhe blieben beim Kicken meist im Schrank – anders lässt sich die Ausbeute von ${goals} Toren in ${games.length} Spielen kaum erklären. Macht ${num(avg)} Treffer pro Kick.`
   ]);
 
   const paras = [];
@@ -138,6 +138,33 @@ function buildArticle(ctx, variant) {
   if (prevGames.length && newbies.length && newbies.length <= 3) pR += ' ' + `Nach torlosem Vormonat wieder in der Torschützenliste: ${newbies.map(nm).join(', ').replace(/, ([^,]*)$/, ' und $1')}.`;
   if (pR.trim()) paras.push({ h: 'Rekorde & Serien', t: pR.trim() });
 
+  // ---------- Alt gegen Jung ----------
+  const tg = games.filter(g => g.result && g.result.winner);
+  if (tg.length) {
+    const d = { alt: 0, jung: 0, draw: 0 };
+    tg.forEach(g => d[g.result.winner]++);
+    const lead = d.alt > d.jung ? 'Alt' : d.jung > d.alt ? 'Jung' : null;
+    const other = lead === 'Alt' ? 'Jung' : 'Alt';
+    let t = lead
+      ? one([
+          `Das Generationenduell ging im ${mName} an Team ${lead}: ${Math.max(d.alt, d.jung)} Siege gegen ${Math.min(d.alt, d.jung)} von Team ${other}${d.draw ? `, dazu ${d.draw === 1 ? 'ein Unentschieden' : d.draw + ' Unentschieden'}` : ''}.`,
+          `Alt gegen Jung – und im ${mName} hatte Team ${lead} die Nase vorn: ${Math.max(d.alt, d.jung)}:${Math.min(d.alt, d.jung)} Siege${d.draw ? ` bei ${d.draw} Remis` : ''}.`
+        ])
+      : `Im Generationenduell herrscht Gleichstand: Team Alt und Team Jung gewannen je ${d.alt}-mal${d.draw ? `, ${d.draw}-mal trennte man sich unentschieden` : ''}.`;
+    const big = tg.slice().sort((a, b) => Math.abs(b.result.alt - b.result.jung) - Math.abs(a.result.alt - a.result.jung))[0];
+    if (big && Math.abs(big.result.alt - big.result.jung) >= 3) {
+      const w = big.result.winner === 'alt' ? 'Alt' : 'Jung';
+      t += ' ' + `Deutlichster Sieg: ${big.result.alt}:${big.result.jung} für Team ${w} am ${fmtDate(big.date)}.`;
+    }
+    const recs = {};
+    tg.forEach(g => ['alt', 'jung'].forEach(side => (g.teams?.[side] || []).forEach(id => {
+      const r = recs[id] ||= { w: 0, n: 0 }; r.n++; if (g.result.winner === side) r.w++;
+    })));
+    const bestRec = Object.entries(recs).filter(([, r]) => r.n >= Math.min(3, tg.length)).sort((a, b) => b[1].w / b[1].n - a[1].w / a[1].n || b[1].w - a[1].w)[0];
+    if (bestRec && bestRec[1].w >= 2 && bestRec[1].w / bestRec[1].n >= 0.6) t += ' ' + `Glücksbringer des Monats: ${nm(bestRec[0])} gewann ${bestRec[1].w} von ${bestRec[1].n} Spielen.`;
+    paras.push({ h: 'Alt gegen Jung', t });
+  }
+
   // ---------- Schönste Tore ----------
   const bests = [];
   games.forEach(g => g.goals.forEach(x => { if (x.best) bests.push({ ...x, date: g.date }); }));
@@ -165,8 +192,8 @@ function buildArticle(ctx, variant) {
 
   // ---------- Flop ----------
   if (flop) paras.push({ h: 'Der Flop des Monats', t: one([
-    `Weniger rund lief es für ${nm(flop.id)}: Die Redaktion kürt ihn zum Flop des Monats${flop.note ? ` – Begründung: „${flop.note}“` : ''}. Kopf hoch, der nächste Monat kommt bestimmt!`,
-    `Und dann gibt es noch ${nm(flop.id)}, unseren Flop des Monats${flop.note ? ` („${flop.note}“)` : ''}. Wir sind sicher: Das Comeback folgt.`
+    `Weniger rund lief es für ${nm(flop.id)}: Die Mannschaft wählte ihn mit ${flop.votes} von ${flop.total} Stimmen zum Flop des Monats. Kopf hoch, der nächste Monat kommt bestimmt!`,
+    `Und dann gibt es noch ${nm(flop.id)}, von der Mannschaft zum Flop des Monats gewählt (${flop.votes} von ${flop.total} Stimmen). Wir sind sicher: Das Comeback folgt.`
   ]) });
 
   // ---------- Abschluss ----------

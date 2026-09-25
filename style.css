@@ -473,3 +473,84 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 /* Handball-Position */
 .pcard .ov .pp { display: block; font-style: normal; font-size: 11px; font-weight: 600; color: var(--gold); margin: 1px 0 1px; line-height: 1.2; }
 .fifa-name small { display: block; font: 700 12px var(--font); letter-spacing: .08em; opacity: .75; margin-top: 4px; }
+
+/* ============ Teams: Alt gegen Jung ============ */
+:root { --alt: #f2a93b; --jung: #5db7ff; }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.steps button { padding: 9px 4px; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid var(--line); text-align: center; }
+.steps button b { display: block; font: 700 14px var(--display); text-transform: uppercase; letter-spacing: .03em; }
+.steps button span { font-size: 11px; color: var(--muted); }
+.steps button.on { background: var(--red); border-color: var(--red); }
+.steps button.on span { color: #fff; }
+.steps button:disabled { opacity: .35; }
+.score-pill.sb { display: flex; align-items: center; gap: 4px; background: linear-gradient(90deg, var(--alt), var(--red) 50%, var(--jung)); color: #fff; }
+.score-pill.sb small { font-size: 14px; }
+.team-count { display: flex; gap: 8px; margin-bottom: 10px; }
+.team-count span { flex: 1; text-align: center; padding: 8px; border-radius: 12px; font-weight: 700; font-size: 14px; }
+.team-count .alt { background: rgba(242,169,59,.16); color: var(--alt); border: 1px solid rgba(242,169,59,.45); }
+.team-count .jung { background: rgba(93,183,255,.14); color: var(--jung); border: 1px solid rgba(93,183,255,.45); }
+.team-count b { font: 700 18px var(--display); margin-left: 4px; }
+.tile.tm.out { opacity: .5; }
+.tile.tm.out img { filter: grayscale(.8); }
+.tile.tm.in-alt { border-color: var(--alt); background: rgba(242,169,59,.14); }
+.tile.tm.in-jung { border-color: var(--jung); background: rgba(93,183,255,.12); }
+.tbadge { position: absolute; top: 3px; right: 3px; font: 700 11px/1 var(--display); padding: 3px 6px; border-radius: 999px; text-transform: uppercase; }
+.tbadge.alt { background: var(--alt); color: #2a1a00; }
+.tbadge.jung { background: var(--jung); color: #001634; }
+.team-sec { border-radius: 16px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--line); }
+.team-sec.alt { background: rgba(242,169,59,.07); border-color: rgba(242,169,59,.35); }
+.team-sec.jung { background: rgba(93,183,255,.06); border-color: rgba(93,183,255,.35); }
+.team-sec h3 { margin: 0 0 8px; font: 700 16px var(--display); text-transform: uppercase; letter-spacing: .03em; display: flex; justify-content: space-between; }
+.team-sec.alt h3 { color: var(--alt); } .team-sec.jung h3 { color: var(--jung); }
+.team-sec h3 span { color: var(--muted); font-size: 13px; }
+.tdot { font: 700 10px var(--display); padding: 2px 5px; border-radius: 6px; text-transform: uppercase; vertical-align: 1px; }
+.tdot.alt { background: rgba(242,169,59,.25); color: var(--alt); } .tdot.jung { background: rgba(93,183,255,.22); color: var(--jung); }
+.scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; text-align: center; }
+.sb-t { font-size: 28px; }
+.sb-t b { display: block; font: 800 20px var(--display); letter-spacing: .05em; }
+.sb-t small { font-size: 11px; color: var(--muted); }
+.sb-t.alt b { color: var(--alt); } .sb-t.jung b { color: var(--jung); }
+.sb-s { font: 800 52px/1 var(--display); }
+.res-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.res-btn { padding: 14px 4px; border-radius: 14px; font-weight: 700; font-size: 15px; background: rgba(255,255,255,.06); border: 2px solid transparent; transition: transform .12s; }
+.res-btn:active { transform: scale(.95); }
+.res-btn.alt.on { border-color: var(--alt); background: rgba(242,169,59,.22); }
+.res-btn.jung.on { border-color: var(--jung); background: rgba(93,183,255,.2); }
+.res-btn.draw.on { border-color: #fff; background: rgba(255,255,255,.14); }
+.teams-view { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.tv { border-radius: 12px; padding: 8px; border: 1px solid var(--line); }
+.tv.alt { background: rgba(242,169,59,.08); } .tv.jung { background: rgba(93,183,255,.07); }
+.tv small { display: block; font-weight: 700; font-size: 12px; margin-bottom: 6px; }
+.tv.alt small { color: var(--alt); } .tv.jung small { color: var(--jung); }
+.tv div { display: flex; flex-wrap: wrap; gap: 3px; }
+.tv img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.tv em { color: var(--faint); font-size: 12px; }
+.gl.alt .i { color: var(--alt); } .gl.jung .i { color: var(--jung); }
+.log li.alt { box-shadow: inset 3px 0 0 var(--alt); padding-left: 6px; } .log li.jung { box-shadow: inset 3px 0 0 var(--jung); padding-left: 6px; }
+.game-h .gscore { font: 700 17px var(--display); letter-spacing: .02em; }
+.game-h .gscore span { color: var(--muted); font-size: 14px; }
+.game-h .gscore span.win { color: #fff; }
+/* Übersicht: Duell */
+.duel { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; }
+.dt, .dm { text-align: center; border-radius: 14px; padding: 10px 4px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+.dt span { font-size: 22px; }
+.dt b, .dm b { display: block; font: 800 34px/1 var(--display); }
+.dt small, .dm small { font-size: 11px; color: var(--muted); }
+.dt.alt b { color: var(--alt); } .dt.jung b { color: var(--jung); }
+.dt.alt.lead { background: rgba(242,169,59,.16); border-color: rgba(242,169,59,.5); }
+.dt.jung.lead { background: rgba(93,183,255,.14); border-color: rgba(93,183,255,.5); }
+.dm { padding: 18px 10px; }
+.dm b { font-size: 24px; }
+.duel-bar { display: flex; gap: 2px; height: 8px; margin: 10px 0 8px; border-radius: 4px; overflow: hidden; }
+.duel-bar .alt { background: var(--alt); } .duel-bar .draw { background: rgba(255,255,255,.35); } .duel-bar .jung { background: var(--jung); }
+.duel-sub { font-size: 12px; color: var(--muted); line-height: 2; }
+.duel-sub b { color: #fff; }
+.rchip { display: inline-flex; align-items: center; gap: 3px; font: 700 12px/1 var(--display); padding: 3px 6px; border-radius: 6px; margin-left: 3px; vertical-align: 1px; }
+.rchip small { font-weight: 600; opacity: .8; }
+.rchip.alt { background: rgba(242,169,59,.25); color: var(--alt); } .rchip.jung { background: rgba(93,183,255,.22); color: var(--jung); } .rchip.draw { background: rgba(255,255,255,.12); color: #fff; }
+/* Profil: Bilanz */
+.rec-card .streaks { margin-bottom: 8px; }
+.rec-line { font-size: 13px; color: var(--muted); text-align: center; }
+.rec-line b { color: #fff; font: 700 18px var(--display); }
+/* Flop-Ergebnisse grün statt gold */
+.results.flop .bar i { background: linear-gradient(90deg, #7fbf5a, #b9e08f); }

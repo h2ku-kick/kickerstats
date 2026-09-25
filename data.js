@@ -96,7 +96,7 @@ const Store = {
   normalize(d) {
     d = d || {};
     const players = (d.players && d.players.length ? d.players : DEFAULT_PLAYERS).map(p => ({ ...p, active: p.active !== false, guest: !!p.guest }));
-    return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: d.votes || [],
+    return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: (d.votes || []).map(v => ({ ...v, type: v.type === 'flop' ? 'flop' : 'potm' })),
       reactions: d.reactions || [], comments: d.comments || [], months: d.months || [], pins: d.pins || {}, demo: !!d.demo };
   },
 
@@ -182,12 +182,12 @@ const Store = {
     return this.data;
   },
 
-  async vote(month, pick) {
+  async vote(month, pick, type = 'potm') {
     if (!this.me) throw new Error('Bitte als Spieler anmelden');
     if (pick === this.me.id) throw new Error('Für dich selbst kannst du nicht stimmen 😉');
-    if (this.online) { await this.post({ action: 'vote', month, pick, ...this.cred() }); return this.load(); }
-    this.data.votes = this.data.votes.filter(v => !(v.month === month && v.voter === this.me.id));
-    this.data.votes.push({ month, pick, voter: this.me.id });
+    if (this.online) { await this.post({ action: 'vote', month, pick, type, ...this.cred() }); return this.load(); }
+    this.data.votes = this.data.votes.filter(v => !(v.month === month && v.voter === this.me.id && v.type === type));
+    this.data.votes.push({ month, pick, voter: this.me.id, type });
     this.cacheWrite(this.data);
     return this.data;
   },
