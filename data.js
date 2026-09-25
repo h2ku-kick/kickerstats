@@ -232,7 +232,7 @@ const Store = {
     if (target === this.me.id) throw new Error('Dich selbst kannst du nicht bewerten');
     if (this.online) { await this.post({ action: 'rate', target, ...vals, ...this.cred() }); return this.load(); }
     const r = this.data.ratings, old = r.mine[target], a = r.agg[target] || (r.agg[target] = { n: 0, tem: 0, dri: 0, abw: 0 });
-    ['tem', 'dri', 'abw'].forEach(k => { const sum = a[k] * a.n - (old ? old[k] : 0) + vals[k]; a[k] = Math.round(sum / (a.n + (old ? 0 : 1))); });
+    ['tem', 'dri', 'abw'].forEach(k => { const sum = a[k] * a.n - (old ? old[k] : 0) + vals[k]; a[k] = Math.round(sum / (a.n + (old ? 0 : 1)) * 10) / 10; });
     if (!old) a.n++;
     r.mine[target] = { ...vals };
     this.cacheWrite(this.data);

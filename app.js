@@ -143,20 +143,21 @@ function withPrev(st) {
   return o;
 }
 
-/* Spielerkarte: 3 Team-Werte (Startwert aus der Tabelle, ab 3 Bewertungen der Mannschaftsschnitt) + 3 Statistik-Werte */
+/* Spielerkarte: 3 Team-Werte. Startwert aus der Tabelle zählt wie BASE_WEIGHT Bewertungen, jede Bewertung der Mannschaft fließt sofort ein. */
+const BASE_WEIGHT = 3;
 function teamVals(id) {
   const p = player(id), a = D.ratings?.agg?.[id], b = p.base || {};
-  const useTeam = a && a.n >= 3;
-  // unter 3 Bewertungen nie den Schnitt zeigen – sonst ließe sich eine einzelne Bewertung ablesen
-  const pick = k => useTeam ? a[k] : b[k] != null ? b[k] : 50;
-  return { TEM: pick('tem'), DRI: pick('dri'), ABW: pick('abw'), n: a?.n || 0, src: useTeam ? 'team' : (b.tem != null || b.dri != null || b.abw != null) ? 'start' : 'none' };
+  const hasBase = b.tem != null || b.dri != null || b.abw != null;
+  const start = k => b[k] != null ? b[k] : 50;
+  const val = k => a && a.n ? Math.round((start(k) * BASE_WEIGHT + a[k] * a.n) / (BASE_WEIGHT + a.n)) : start(k);
+  return { TEM: val('tem'), DRI: val('dri'), ABW: val('abw'), n: a?.n || 0, src: a?.n ? 'mix' : hasBase ? 'start' : 'none' };
 }
 function statRaw(games) {
   const st = computeStats(games), out = {};
   D.players.forEach(p => {
     const mine = games.filter(g => played(g, p.id)), n = mine.length, s = st[p.id] || { g: 0, a: 0 };
     const form = mine.slice(-5).reduce((t, g) => t + g.goals.filter(x => x.s === p.id).length + g.goals.filter(x => x.a === p.id).length, 0);
-    out[p.id] = { n, TOR: n ? s.g / n : 0, VOR: n ? s.a / n : 0, FRM: form };
+    out[p.id] = { n, TOR: n ? s.g / n : 0, VOR: n ? s.a / n : 0, FRM: form, totG: s.g + (p.prevG || 0), totA: s.a + (p.prevA || 0) };
   });
   return out;
 }
@@ -165,9 +166,14 @@ function fifaOf(id, games = D.games) {
   if (live && m.fifa[id]) return m.fifa[id];
   const raw = live ? (m.raw ||= statRaw(games)) : statRaw(games);
   const minN = Math.min(3, Math.max(1, ...Object.values(raw).map(r => r.n)));
-  const pool = Object.values(raw).filter(r => r.n >= minN);
-  const me = raw[id] || { n: 0, TOR: 0, VOR: 0, FRM: 0 }, out = {};
-  ['TOR', 'VOR', 'FRM'].forEach(k => { const max = Math.max(0, ...pool.map(r => r[k])); out[k] = max > 0 ? Math.round(45 + 54 * Math.sqrt(Math.min(1, me[k] / max))) : 45; });
+  const pool = Object.values(raw).filter(r => r.n >= minN), all = Object.values(raw);
+  const me = raw[id] || { n: 0, TOR: 0, VOR: 0, FRM: 0, totG: 0, totA: 0 }, out = {};
+  const rel = (v, list) => { const max = Math.max(0, ...list); return max > 0 ? Math.min(1, v / max) : 0; };
+  const sc = x => Math.round(45 + 54 * Math.sqrt(x));
+  // TOR/VOR: halb pro Spiel (nur App-Spiele), halb Gesamtmenge inkl. alter Tore/Assists
+  out.TOR = sc(0.5 * rel(me.TOR, pool.map(r => r.TOR)) + 0.5 * rel(me.totG, all.map(r => r.totG)));
+  out.VOR = sc(0.5 * rel(me.VOR, pool.map(r => r.VOR)) + 0.5 * rel(me.totA, all.map(r => r.totA)));
+  out.FRM = sc(rel(me.FRM, pool.map(r => r.FRM)));
   const tv = teamVals(id);
   Object.assign(out, { TEM: tv.TEM, DRI: tv.DRI, ABW: tv.ABW, src: tv.src, votes: tv.n, games: me.n });
   out.OVR = Math.round((out.TEM + out.DRI + out.ABW + out.TOR + out.VOR + out.FRM) / 6);
@@ -195,8 +201,13 @@ function dreamKing() {
   const ids = Object.keys(c).filter(k => byId[k]);
   return ids.length ? ids.sort((a, b) => c[b] - c[a] || last[b] - last[a])[0] : null;
 }
+function latestFlop() {
+  for (let m = shiftMonth(THIS_MONTH, -1), i = 0; i < 24; i++, m = shiftMonth(m, -1)) { const f = flopOf(m); if (f) return f; }
+  return null;
+}
 function specialOf(id) {
   const pm = latestPotm(); if (pm && pm.id === id) return 'potm';
+  const fl = latestFlop(); if (fl && fl.id === id) return 'flop';
   if (inFormIds().includes(id)) return 'inform';
   if (dreamKing() === id) return 'dream';
   return null;
@@ -208,13 +219,16 @@ const CARD_STYLE = {
   inform: { g: ['#2c2614', '#15120a', '#0b0905'], stroke: '#d9ad55', ink: '#f7e08a', stripes: '#d9ad55', tag: 'In Form' },
   potm:   { g: ['#7b3fd1', '#3c1a6e', '#e10026'], stroke: '#e7d4ff', ink: '#ffffff', tag: 'Spieler des Monats' },
   dream:  { g: ['#5de0e6', '#1b6fb8', '#0b2350'], stroke: '#c8f6ff', ink: '#ffffff', tag: 'Traumtor' },
+  flop:   { g: ['#b9e08f', '#5f8f3a', '#26401a'], stroke: '#e4f7cf', ink: '#ffffff', tag: 'Flop des Monats' },
   back:   { g: ['#0e3a78', '#0a2b5c', '#061a3a'], stroke: '#5db7ff', ink: '#ffffff' }
 };
-const SHIELD = 'M30 3H240L267 30V296L135 407L3 296V30Z';
+const SHIELD = 'M30 3H240L267 30V338L152 399Q135 408 118 399L3 338V30Z';   // flache, leicht abgerundete Spitze
 const shieldUri = svg => `url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, '%27')}')`;   // einfache Anführungszeichen – steht in style="…"
 function shieldBg(c) {
-  const stripes = c.stripes ? `<g clip-path="url(#c)"><path d="M60 0L10 300M140 0L60 410M230 0L130 410" stroke="${c.stripes}" stroke-opacity=".13" stroke-width="18"/></g>` : '';
-  return shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.g[0]}"/><stop offset=".55" stop-color="${c.g[1]}"/><stop offset="1" stop-color="${c.g[2]}"/></linearGradient><clipPath id="c"><path d="${SHIELD}"/></clipPath></defs><path d="${SHIELD}" fill="url(#g)"/>${stripes}<path d="${SHIELD}" fill="none" stroke="${c.stroke}" stroke-opacity=".65" stroke-width="4"/></svg>`);
+  // weiche Lichtbahnen statt harter Streifen
+  const stripes = c.stripes ? `<rect width="270" height="410" fill="url(#s)" clip-path="url(#c)"/>` : '';
+  const sdef = c.stripes ? `<linearGradient id="s" x1="0" y1="0" x2="1" y2=".45"><stop offset="0" stop-color="${c.stripes}" stop-opacity="0"/><stop offset=".22" stop-color="${c.stripes}" stop-opacity=".16"/><stop offset=".4" stop-color="${c.stripes}" stop-opacity="0"/><stop offset=".62" stop-color="${c.stripes}" stop-opacity=".12"/><stop offset=".85" stop-color="${c.stripes}" stop-opacity="0"/></linearGradient>` : '';
+  return shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.g[0]}"/><stop offset=".55" stop-color="${c.g[1]}"/><stop offset="1" stop-color="${c.g[2]}"/></linearGradient>${sdef}<clipPath id="c"><path d="${SHIELD}"/></clipPath></defs><path d="${SHIELD}" fill="url(#g)"/>${stripes}<path d="${SHIELD}" fill="none" stroke="${c.stroke}" stroke-opacity=".65" stroke-width="4"/></svg>`);
 }
 const SHIELD_MASK = shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><path d="${SHIELD}" fill="#000"/></svg>`);
 function cardHtml(id, opts = {}) {
@@ -238,7 +252,7 @@ function cardBack(id) {
   const tds = D.games.filter(g => g.goals.some(x => x.best && x.s === id)).length;
   const from = {}; D.games.forEach(g => g.goals.forEach(x => { if (x.s === id && x.a) from[x.a] = (from[x.a] || 0) + 1; }));
   const fav = Object.entries(from).sort((a, b) => b[1] - a[1])[0];
-  const src = f.src === 'team' ? `Ø ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'}` : f.src === 'start' ? 'Startwerte' : 'offen';
+  const src = f.src === 'mix' ? `${f.src === 'mix' && player(id).base ? 'Start + ' : ''}${f.votes} Bewertung${f.votes === 1 ? '' : 'en'}` : f.src === 'start' ? 'Startwerte' : 'offen';
   const li = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
   return `<div class="fc t-back" style="--ink:#fff;background-image:${shieldBg(CARD_STYLE.back)}">
     <div class="fc-back-h">${esc(player(id).name)}</div>
@@ -337,7 +351,7 @@ function viewHome() {
   if (potm) html += `<div class="card potm" data-act="profile" data-id="${potm.id}">${imgTag(face(potm.id), potm.id)}<div><div class="lbl">Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(potm.id).name)}</div><div class="sm">${potm.votes} von ${potm.total} Stimmen</div></div></div>`;
   html += `<div class="kpis">
     <div class="kpi"><b data-count="${games.length}">0</b><span>Spiele</span></div>
-    <div class="kpi"><b data-count="${goals}">0</b><span>Tore</span></div>
+    <div class="kpi"><b data-count="${goals + (S.scope === 'all' ? D.players.reduce((n, p) => n + (p.prevG || 0), 0) : 0)}">0</b><span>Tore</span></div>
     <div class="kpi"><b data-count="${games.length ? (goals / games.length).toFixed(1) : 0}" data-dec="1">0</b><span>Tore/Spiel</span></div>
     <div class="kpi"><b>${goals ? Math.round(assisted / goals * 100) : 0}%</b><span>mit Assist</span></div></div>`;
   if (!games.length) return html + `<div class="card"><div class="empty" style="text-align:center;padding:30px 0">Noch keine Spiele ${S.scope === 'month' ? 'in diesem Monat' : ''} eingetragen.<br>Tore werden über <b>Eintragen</b> erfasst.</div></div>`;
@@ -531,7 +545,7 @@ function openFifa(id) {
     </div></div>
     <p class="empty" style="text-align:center;margin:4px 0 12px">Tippe auf die Karte, um sie umzudrehen.</p>
     <div class="btn-row"><button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Teilen</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}">Bewerten</button>` : ''}</div>
-    <p class="empty" style="text-align:center;margin-top:12px">TEM, DRI, ABW: ${f.src === 'team' ? `Durchschnitt aus ${f.votes} Bewertungen der Mannschaft` : f.src === 'start' ? 'Startwerte – ab 3 Bewertungen zählt der Mannschaftsschnitt' : 'noch keine Werte – ab 3 Bewertungen zählt der Mannschaftsschnitt'}.<br>TOR, VOR: pro Spiel, in dem man dabei war · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte.</p>
+    <p class="empty" style="text-align:center;margin-top:12px">TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte.</p>
   </div>`, 'fifa');
   startShine();
 }
@@ -540,7 +554,7 @@ function openRate(id) {
   const v = { tem: cur.tem ?? cur.TEM, dri: cur.dri ?? cur.DRI, abw: cur.abw ?? cur.ABW };
   const sl = (k, l) => `<div class="rate-row"><label>${l}<b id="rv-${k}">${v[k]}</b></label><input type="range" min="1" max="99" step="1" value="${v[k]}" data-input="rate" data-k="${k}"></div>`;
   openSheet(`<div class="sheet-body" style="padding-top:8px"><h2 style="font:800 26px var(--display);text-transform:uppercase;margin:0 0 4px">${esc(player(id).name)}</h2>
-    <p style="color:var(--muted);margin:0 0 14px;font-size:14px">Wie schätzt du ihn ein? Deine Bewertung bleibt geheim – auf der Karte steht nur der Durchschnitt, sobald mindestens 3 Mitspieler bewertet haben. Du kannst sie jederzeit ändern.</p>
+    <p style="color:var(--muted);margin:0 0 14px;font-size:14px">Wie schätzt du ihn ein? Deine Bewertung fließt sofort in seine Karte ein – zusammen mit dem Startwert und den Bewertungen der anderen. Wer wie bewertet hat, sieht niemand. Du kannst sie jederzeit ändern.</p>
     ${sl('tem', 'Tempo')}${sl('dri', 'Dribbling')}${sl('abw', 'Abwehr')}
     <button class="btn gold" data-act="rate-save" data-id="${id}" style="margin-top:8px">${D.ratings.mine[id] ? 'Bewertung ändern' : 'Bewertung speichern'}</button></div>`, 'rate');
 }
