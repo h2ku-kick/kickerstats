@@ -54,6 +54,9 @@ const I = {
   send: svgI('<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>'),
   comment: svgI('<path d="M5 18l-1 3 4-2h9a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v9"/>'),
   ball: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10z"/>'),
+  medal: svgI('<path d="M8 3l2.5 6M16 3l-2.5 6"/><circle cx="12" cy="15" r="6"/><path d="M12 12.2l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2-1.45-1.4 2-.3z"/>', 'medal'),
+  lantern: svgI('<path d="M9.5 4.5a2.5 2.5 0 0 1 5 0"/><path d="M7.5 6.5h9"/><path d="M8.5 6.5c-1.6 2.3-1.6 9.7 0 12h7c1.6-2.3 1.6-9.7 0-12"/><path d="M9 20.5h6"/><path d="M12 10.5c-1.1 1.5-1.6 2.5-1.6 3.4a1.6 1.6 0 0 0 3.2 0c0-.9-.5-1.9-1.6-3.4z"/>', 'lantern'),
+  info: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
   save: svgI('<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M8 3v5h7V3"/><rect x="8" y="13" width="8" height="5" rx="1"/>')
 };
 let D = null; // Daten
@@ -325,7 +328,7 @@ function countUp(el) {
   const to = parseFloat(el.dataset.count), dec = el.dataset.dec ? 1 : 0, t0 = performance.now(), dur = 700;
   const fmt = v => v.toLocaleString('de-DE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   let done = false;
-  const step = t => { if (done) return; const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); el.textContent = fmt(to * e); if (p < 1) requestAnimationFrame(step); else done = true; };
+  const step = t => { if (done) return; const p = Math.max(0, Math.min(1, (t - t0) / dur)), e = 1 - Math.pow(1 - p, 3); el.textContent = fmt(to * e); if (p < 1) requestAnimationFrame(step); else done = true; };
   requestAnimationFrame(step);
   setTimeout(() => { done = true; el.textContent = fmt(to); }, dur + 150); // Endwert garantiert
 }
@@ -348,7 +351,7 @@ function viewHome() {
   const assisted = games.reduce((s, g) => s + g.goals.filter(x => x.a).length, 0);
   const potm = S.scope === 'month' ? potmOf(S.month) : latestPotm();
   let html = demoPill() + `<div class="card" style="padding:12px">${seg('scope', [['all', 'Gesamt'], ['month', 'Monat']], S.scope)}${S.scope === 'month' ? monthStepper() : ''}</div>`;
-  if (potm) html += `<div class="card potm" data-act="profile" data-id="${potm.id}">${imgTag(face(potm.id), potm.id)}<div><div class="lbl">Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(potm.id).name)}</div><div class="sm">${potm.votes} von ${potm.total} Stimmen</div></div></div>`;
+  if (potm) html += `<div class="card potm" data-act="profile" data-id="${potm.id}">${imgTag(face(potm.id), potm.id)}<div><div class="lbl">${I.medal} Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(potm.id).name)}</div><div class="sm">${potm.votes} von ${potm.total} Stimmen</div></div></div>`;
   html += `<div class="kpis">
     <div class="kpi"><b data-count="${games.length}">0</b><span>Spiele</span></div>
     <div class="kpi"><b data-count="${goals + (S.scope === 'all' ? D.players.reduce((n, p) => n + (p.prevG || 0), 0) : 0)}">0</b><span>Tore</span></div>
@@ -395,8 +398,7 @@ function duelCard(games) {
     </div>
     <div class="duel-bar"><i class="alt" style="flex:${d.alt || .001}"></i><i class="draw" style="flex:${d.draw || .001}"></i><i class="jung" style="flex:${d.jung || .001}"></i></div>
     <div class="duel-sub">Tore: <b>${goals.alt}</b> Alt · <b>${goals.jung}</b> Jung · Letzte Spiele: ${tg.slice(-6).map(chip).join('')}</div>
-    ${types.length ? `<div class="sec-title" style="margin:14px 0 4px">Siegertypen</div><ul class="rank" style="--bc:var(--gold)">${types.map((x, i) => `<li data-act="profile" data-id="${x.id}"><span class="n">${i + 1}</span>${imgTag(face(x.id), x.id)}<div class="who"><b>${esc(player(x.id).name)}</b><div class="bar"><i data-w="${x.r.pct}"></i></div></div><span class="v" style="font-size:18px">${x.r.pct}%<small style="display:block;font:500 10px var(--font);color:var(--muted)">${x.r.w}-${x.r.d}-${x.r.l}</small></span></li>`).join('')}</ul>
-      <div class="empty">Siegquote = gewonnene Spiele, in denen man dabei war (S-U-N). Ab ${min} Spielen mit Team.</div>` : ''}
+    ${types.length ? `<div class="sec-title" style="margin:14px 0 4px">Siegertypen</div><ul class="rank" style="--bc:var(--gold)">${types.map((x, i) => `<li data-act="profile" data-id="${x.id}"><span class="n">${i + 1}</span>${imgTag(face(x.id), x.id)}<div class="who"><b>${esc(player(x.id).name)}</b><div class="bar"><i data-w="${x.r.pct}"></i></div></div><span class="v" style="font-size:18px">${x.r.pct}%<small style="display:block;font:500 10px var(--font);color:var(--muted)">${x.r.w}-${x.r.d}-${x.r.l}</small></span></li>`).join('')}</ul>` : ''}
   </div>`;
 }
 function highlights(games, st) {
@@ -442,7 +444,7 @@ function viewPlayers() {
     const ids = D.players.filter(p => match(p) && !p.guest).map(p => p.id).sort((a, b) => fifaOf(b).OVR - fifaOf(a).OVR || player(a).name.localeCompare(player(b).name));
     return head + `<input class="search" type="search" placeholder="Name, Nummer oder Position suchen" value="${esc(S.filter)}" data-input="filter">
       <div class="gallery">${ids.map(id => `<div class="mini" data-act="fifa" data-id="${id}">${cardHtml(id, { mini: true })}</div>`).join('') || '<div class="empty">Niemand gefunden.</div>'}</div>
-      <div class="empty" style="text-align:center;margin-top:8px">Sortiert nach Gesamtwertung. Antippen öffnet die Karte.</div>`;
+      `;
   }
   return head + `<input class="search" type="search" placeholder="Name, Nummer oder Position suchen" value="${esc(S.filter)}" data-input="filter">
     <div class="pgrid">${pl.map(card).join('')}</div>
@@ -472,7 +474,7 @@ function openProfile(id, dir) {
   months.forEach(m => {
     const r = ranked(computeStats(gamesIn('month', m)), 'g');
     if (r[0] && r[0].id === id) badges.push(`Torjäger ${monthLabel(m, false)}`);
-    const pm = potmOf(m); if (pm && pm.id === id) badges.push(`Spieler des Monats ${monthLabel(m, false)}`);
+    const pm = potmOf(m); if (pm && pm.id === id) badges.push(`${I.medal} Spieler des Monats ${monthLabel(m, false)}`);
   });
   const perGame = D.games.map(g => ({ g, n: g.goals.filter(x => x.s === id).length, a: g.goals.filter(x => x.a === id).length }));
   const hat = perGame.filter(x => x.n >= 3).length;
@@ -481,7 +483,7 @@ function openProfile(id, dir) {
   if (tds) badges.push(`${tds}× Tor des Spiels`);
   const sk = streakOf(id);
   if (sk.best >= 3) badges.push(`Rekord: ${sk.best} Spiele in Folge`);
-  months.forEach(m => { const f = flopOf(m); if (f && f.id === id) badges.push(`Flop ${monthLabel(m, false)}`); });
+  months.forEach(m => { const f = flopOf(m); if (f && f.id === id) badges.push(`${I.lantern} Flop ${monthLabel(m, false)}`); });
   const bestGames = perGame.filter(x => x.n + x.a > 0).sort((a, b) => (b.n + b.a) - (a.n + a.a) || b.g.date.localeCompare(a.g.date)).slice(0, 3);
 
   const body = `<div class="prof-hero">${imgTag(portrait(id), id)}
@@ -502,7 +504,7 @@ function openProfile(id, dir) {
         <div><b>${sk.best}</b><span>Rekord-Serie</span></div>
         <div><b>${sk.curP}</b><span>Serie mit Scorerpunkt</span></div>
       </div>
-      ${badges.length ? `<div class="badges">${badges.map(b => `<span class="badge">${esc(b)}</span>`).join('')}</div>` : ''}
+      ${badges.length ? `<div class="badges">${badges.map(b => `<span class="badge">${b.startsWith('<svg') ? b : esc(b)}</span>`).join('')}</div>` : ''}
       ${(() => { const r = recordOf(id); if (!r.n) return ''; const main = r.alt >= r.jung ? 'alt' : 'jung';
         return `<div class="card rec-card"><div class="card-h"><h2>Bilanz</h2><span class="meta">${r.n} Spiele mit Team</span></div>
           <div class="streaks"><div class="${r.w > r.l ? 'hot' : ''}"><b>${r.w}</b><span>Siege</span></div><div><b>${r.d}</b><span>Unentschieden</span></div><div><b>${r.l}</b><span>Niederlagen</span></div></div>
@@ -543,9 +545,8 @@ function openFifa(id) {
       <div class="fc-face front" id="fifa">${cardHtml(id)}</div>
       <div class="fc-face back">${cardBack(id)}</div>
     </div></div>
-    <p class="empty" style="text-align:center;margin:4px 0 12px">Tippe auf die Karte, um sie umzudrehen.</p>
     <div class="btn-row"><button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Teilen</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}">Bewerten</button>` : ''}</div>
-    <p class="empty" style="text-align:center;margin-top:12px">TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte.</p>
+    <details class="how"><summary>${I.info} Wie entstehen die Werte?</summary><p>TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte. Karte antippen zum Umdrehen.</p></details>
   </div>`, 'fifa');
   startShine();
 }
@@ -554,7 +555,7 @@ function openRate(id) {
   const v = { tem: cur.tem ?? cur.TEM, dri: cur.dri ?? cur.DRI, abw: cur.abw ?? cur.ABW };
   const sl = (k, l) => `<div class="rate-row"><label>${l}<b id="rv-${k}">${v[k]}</b></label><input type="range" min="1" max="99" step="1" value="${v[k]}" data-input="rate" data-k="${k}"></div>`;
   openSheet(`<div class="sheet-body" style="padding-top:8px"><h2 style="font:800 26px var(--display);text-transform:uppercase;margin:0 0 4px">${esc(player(id).name)}</h2>
-    <p style="color:var(--muted);margin:0 0 14px;font-size:14px">Wie schätzt du ihn ein? Deine Bewertung fließt sofort in seine Karte ein – zusammen mit dem Startwert und den Bewertungen der anderen. Wer wie bewertet hat, sieht niemand. Du kannst sie jederzeit ändern.</p>
+    <p style="color:var(--muted);margin:0 0 14px;font-size:13px">Anonym, jederzeit änderbar.</p>
     ${sl('tem', 'Tempo')}${sl('dri', 'Dribbling')}${sl('abw', 'Abwehr')}
     <button class="btn gold" data-act="rate-save" data-id="${id}" style="margin-top:8px">${D.ratings.mine[id] ? 'Bewertung ändern' : 'Bewertung speichern'}</button></div>`, 'rate');
 }
@@ -625,8 +626,8 @@ function gameCard(g) {
 
 /* ---------- MONAT (Wahl + Artikel) ---------- */
 const VOTE_TYPES = {
-  potm: { title: 'Spieler des Monats', cta: 'Jetzt abstimmen', key: m => m },
-  flop: { title: 'Flop des Monats', cta: 'Flop wählen', key: m => 'flop:' + m }
+  potm: { title: 'Spieler des Monats', icon: () => I.medal, cta: 'Jetzt abstimmen', key: m => m },
+  flop: { title: 'Flop des Monats', icon: () => I.lantern, cta: 'Flop wählen', key: m => 'flop:' + m }
 };
 function voteCard(type) {
   const T = VOTE_TYPES[type], m = S.month, w = voteWindow(m), vr = voteResult(m, type);
@@ -634,7 +635,7 @@ function voteCard(type) {
   const st = computeStats(gamesIn('month', m));
   const voted = S.me && D.votes.some(v => v.month === m && v.voter === S.me && v.type === type);
   const mine = voted ? { pick: ls.get('h2ku-myvotes', {})[T.key(m)] || D.votes.find(v => v.month === m && v.voter === S.me && v.type === type)?.pick || '?' } : null;
-  let h = `<div class="card vote-${type}"><div class="card-h"><h2>${T.title}</h2></div>`;
+  let h = `<div class="card vote-${type}"><div class="card-h"><h2><span class="ic">${T.icon()}</span>${T.title}</h2></div>`;
   if (w.closed) {
     if (!vr.total) h += `<div class="empty">Für ${monthLabel(m, false)} wurde nicht abgestimmt.</div>`;
     else {
@@ -642,7 +643,7 @@ function voteCard(type) {
       h += type === 'potm'
         ? `<div class="card potm" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><div class="lbl">Gewählt von der Mannschaft</div><div class="nm">${esc(player(win.id).name)}</div><div class="sm">${win.n} von ${vr.total} Stimmen</div></div></div>`
         : `<div class="flop" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><b>${esc(player(win.id).name)}</b><p>${win.n} von ${vr.total} Stimmen – Kopf hoch!</p></div></div>`;
-      h += `<div class="results ${type}">${vr.list.slice(0, 6).map(r => `<div class="r">${imgTag(face(r.id), r.id)}<div class="bar"><i data-w="${Math.round(r.n / vr.total * 100)}"></i><span>${esc(player(r.id).name)}</span></div><span class="pc">${Math.round(r.n / vr.total * 100)}%</span></div>`).join('')}</div>`;
+      h += `<div class="results r-${type}">${vr.list.slice(0, 6).map(r => `<div class="r">${imgTag(face(r.id), r.id)}<div class="bar"><i data-w="${Math.round(r.n / vr.total * 100)}"></i><span>${esc(player(r.id).name)}</span></div><span class="pc">${Math.round(r.n / vr.total * 100)}%</span></div>`).join('')}</div>`;
     }
   } else if (w.open) {
     const sel = S.voteSel[type] || mine?.pick;
@@ -656,8 +657,7 @@ function voteCard(type) {
     else h += `
       <button class="more-btn" data-act="vote-toggle" data-type="${type}" style="margin:0 0 10px">Zuklappen ▴</button>
       <div class="vgrid">${cands.map(({ p, s }) => p.id === S.me ? `<div class="vc self">${imgTag(face(p.id), p.id)}<b>Du</b><span>${s.g} T · ${s.a} A</span></div>` : `<div class="vc ${sel === p.id ? 'sel' : ''}" data-act="vote-pick" data-type="${type}" data-id="${p.id}">${tipIds.includes(p.id) ? `<span class="tip-star" title="Statistik-Tipp">${I.starOn}</span>` : ''}${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b><span>${s.g} T · ${s.a} A</span></div>`).join('')}</div>
-      <div style="margin-top:14px"><button class="btn gold" data-act="vote-send" data-type="${type}" ${!sel || sel === mine?.pick ? 'disabled' : ''}>${mine ? (sel === mine.pick ? (byId[mine.pick] ? `✓ Du hast für ${esc(short(mine.pick))} gestimmt` : '✓ Abgestimmt') : 'Stimme ändern') : 'Stimme abgeben'}</button></div>
-      <div class="empty" style="text-align:center;margin-top:6px">${type === 'potm' ? `${I.starOn} = Statistik-Tipp · ` : 'Mit einem Augenzwinkern · '}Eine Stimme pro Spieler, bis zum Ende änderbar. Für dich selbst geht nicht. Ergebnis erst nach Abschluss.</div>`;
+      <div style="margin-top:14px"><button class="btn gold" data-act="vote-send" data-type="${type}" ${!sel || sel === mine?.pick ? 'disabled' : ''}>${mine ? (sel === mine.pick ? (byId[mine.pick] ? `✓ Du hast für ${esc(short(mine.pick))} gestimmt` : '✓ Abgestimmt') : 'Stimme ändern') : 'Stimme abgeben'}</button></div>`;
   } else h += `<div class="empty">Die Abstimmung startet am 1. ${monthLabel(m)}.</div>`;
   return h + `</div>`;
 }
@@ -666,7 +666,6 @@ function viewMonth() {
   let h = demoPill() + `<div class="card" style="padding:12px">${monthStepper()}</div>`;
   h += voteCard('potm') + voteCard('flop');
   h += `<div class="card"><div class="card-h"><h2><span class="ic">${I.news}</span>Monatsartikel</h2><span class="meta">${games.length} Spiele</span></div>
-    <p style="margin:0 0 12px;color:var(--muted);font-size:14px">Ein Zeitungsbericht über den ${monthLabel(S.month, false)}, automatisch aus den Zahlen erstellt. Er lässt sich als Bild in WhatsApp teilen.</p>
     <button class="btn" data-act="article" ${games.length ? '' : 'disabled'}>${I.news} Artikel erstellen</button></div>`;
   return h;
 }
@@ -699,7 +698,7 @@ function openArticle() {
 function shareArticle(btn) { return shareNode(btn, $('#paper'), `H2Ku-Kickerpost-${S.month}.png`, S.article.headline, '#f6f1e7'); }
 async function renderNode(node, bg) {
   if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-  return html2canvas(node, { scale: 2, backgroundColor: bg || null, useCORS: true });
+  return html2canvas(node, { scale: 2, backgroundColor: bg || null, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: document.documentElement.clientWidth, windowHeight: innerHeight });
 }
 async function shareNode(btn, node, filename, title, bg) {
   btn.disabled = true; const label = btn.textContent; btn.textContent = 'Bild wird erstellt …';
@@ -772,7 +771,7 @@ function stepGoals(d) {
   h += `<div class="card" style="margin-top:14px"><div class="card-h"><h2>Tore in diesem Spiel</h2>${d.goals.length || d.id ? `<button class="more-btn" style="width:auto;margin:0;padding:6px 10px" data-act="discard">Verwerfen</button>` : ''}</div>
       ${d.goals.length ? `<ul class="log">${d.goals.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => { const t = teams ? (d.teams.alt.includes(x.s) ? 'alt' : 'jung') : ''; return `<li class="${x.best ? 'is-best' : ''} ${t}"><span class="i">${i + 1}</span><div class="t"><b>${esc(player(x.s).name)}</b>${t ? ` <span class="tdot ${t}">${TEAMS[t].short}</span>` : ''}<br><small>${x.a ? '← ' + esc(player(x.a).name) : 'ohne Assist'}</small></div><button class="star-btn ${x.best ? 'on' : ''}" data-act="best" data-i="${i}" aria-label="Tor des Spiels">${x.best ? I.starOn : I.star}</button><button data-act="del-goal" data-i="${i}" aria-label="Löschen">✕</button></li>`; }).join('')}</ul>
         ${d.goals.some(x => x.best) ? `<div class="best-note"><label>${I.starOn} Tor des Spiels – Kommentar (optional)</label><input data-input="bestnote" maxlength="120" placeholder="z. B. Fallrückzieher aus 20 Metern" value="${esc(d.goals.find(x => x.best).note || '')}"></div>`
-          : `<div class="empty">Tipp: Mit dem Stern ${I.star} markierst du das Tor des Spiels.</div>`}` : `<div class="empty">Noch keine Tore. Tippe oben auf den Torschützen.</div>`}
+          : ''}` : `<div class="empty">Noch keine Tore. Tippe oben auf den Torschützen.</div>`}
     </div></div>`;
   if (teams) h += `<button class="btn" data-act="step" data-v="result" style="margin-bottom:14px">Weiter zum Ergebnis →</button>`;
   return h;
@@ -784,7 +783,7 @@ function stepResult(d) {
       <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${d.teams.alt.length} Spieler</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${d.teams.jung.length} Spieler</small></div></div>
       <div class="sec-title" style="margin:14px 0 8px;text-align:center">Wer hat gewonnen?</div>
       <div class="res-row">${opt('alt', 'Alt')}${opt('draw', 'Remis')}${opt('jung', 'Jung')}</div>
-      <div class="empty" style="text-align:center;margin-top:8px">${d.winner ? 'Von dir gewählt.' : win ? 'Automatisch aus den Toren vorgeschlagen.' : 'Noch keine Tore – bitte Sieger antippen.'} Nicht alle Tore notiert? Dann einfach den richtigen Sieger wählen.</div>
+      <div class="empty" style="text-align:center;margin-top:8px">${d.winner ? 'Von dir gewählt' : win ? 'Vorschlag aus den Toren' : 'Sieger antippen'}</div>
     </div>
     <div class="teams-view" style="margin-bottom:14px">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].name}${win === t ? ' <span class="winner-tag">Sieger</span>' : ''}</small><div>${d.teams[t].map(id => imgTag(face(id), id)).join('')}</div></div>`).join('')}</div>`;
 }
@@ -800,7 +799,7 @@ function adminLists() {
       ${guests.map(p => { const s = st[p.id] || { g: 0, a: 0 }; const used = s.g + s.a > 0 || D.games.some(g => teamOf(g, p.id)); return `<div class="row" style="${p.active ? '' : 'opacity:.55'}"><div class="t"><b>${esc(p.name)}</b><small>${s.g} T · ${s.a} A${p.active ? '' : ' · ausgeblendet'}</small></div>
         <button class="icon-btn" data-act="guest-toggle" data-id="${p.id}" aria-label="${p.active ? 'Ausblenden' : 'Einblenden'}" title="${p.active ? 'Ausblenden' : 'Einblenden'}">${p.active ? I.eyeOff : I.eye}</button>
         <button class="icon-btn danger" data-act="guest-del" data-id="${p.id}" data-used="${used ? 1 : ''}" aria-label="Löschen" title="Löschen">${I.trash}</button></div>`; }).join('')}
-      <div class="empty">Ausblenden: Der Gast verschwindet aus den Kacheln, seine Tore bleiben in der Statistik. Löschen geht nur ohne Tore/Assists.</div></div>`;
+      </div>`;
   }
   const vm = [...new Set(D.votes.map(v => v.month))].sort().reverse().slice(0, 4);
   const all = D.players.filter(p => p.active && !p.guest);
@@ -808,7 +807,7 @@ function adminLists() {
     ${vm.map(m => { const open = !voteWindow(m).closed;
       return ['potm', 'flop'].map(type => { const vs = D.votes.filter(v => v.month === m && v.type === type); const missing = all.filter(p => !vs.some(v => v.voter === p.id));
         return `<div class="row"><div class="t"><b>${monthLabel(m)}</b><small>${VOTE_TYPES[type].title} · ${open ? 'läuft' : 'beendet'}${open && missing.length && vs.length ? ' · fehlt noch: ' + missing.map(p => esc(short(p.id))).join(', ') : ''}</small></div><b style="font:700 20px var(--display)">${vs.length}/${all.length}</b></div>`; }).join(''); }).join('') || '<div class="empty">Noch keine Stimmen.</div>'}
-    <div class="empty">Jeder Spieler hat pro Abstimmung genau eine Stimme (mit seiner PIN).</div></div>`;
+    </div>`;
   if (!Store.online) h += `<div class="card"><div class="card-h"><h2>Prototyp</h2></div><p style="margin:0 0 10px;color:var(--muted);font-size:13px">Die Daten liegen gerade nur auf diesem Gerät.</p>
     <div class="btn-row"><button class="btn ghost sm" data-act="demo-reset">Beispieldaten neu</button><button class="btn ghost sm" data-act="demo-empty">Alles leeren</button></div></div>`;
   h += `<button class="btn ghost" data-act="logout" style="margin-bottom:96px">Abmelden</button>`;
@@ -912,8 +911,12 @@ const actions = {
   'open-game': el => { S.open.add(el.dataset.id); S.tab = 'games'; closeSheet(true); render(true); setTimeout(() => $('#g-' + el.dataset.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80); },
   fifa: el => openFifa(el.dataset.id),
   'fifa-share': async el => {
-    $('.fc-flip')?.classList.remove('flipped'); document.body.classList.add('sharing');
-    try { await shareNode(el, $('#fifa .fc'), `H2Ku-Karte-${el.dataset.id}.png`, player(el.dataset.id).name, null); } finally { document.body.classList.remove('sharing'); }
+    // Unsichtbare Kopie rendern – die sichtbare Karte (und die Scrollposition) bleibt unverändert
+    const sheet = $('.sheet'), top = sheet?.scrollTop || 0, y = scrollY;
+    const box = document.createElement('div'); box.className = 'share-stage'; box.innerHTML = cardHtml(el.dataset.id);
+    document.body.appendChild(box); document.body.classList.add('sharing');
+    try { await shareNode(el, box.firstElementChild, `H2Ku-Karte-${el.dataset.id}.png`, player(el.dataset.id).name, null); }
+    finally { box.remove(); document.body.classList.remove('sharing'); if (sheet) sheet.scrollTop = top; scrollTo(0, y); }
   },
   flip: el => { el.classList.toggle('flipped'); askMotion(); buzz(10); },
   'rate-open': el => openRate(el.dataset.id),
@@ -945,7 +948,7 @@ const actions = {
     const p = player(S.me);
     openSheet(`<div class="sheet-body" style="padding-top:8px;text-align:center">${imgTag(face(S.me), S.me, 'acc-face')}
       <h2 style="font:800 26px var(--display);text-transform:uppercase;margin:8px 0 2px">${esc(p.name)}</h2>
-      <p style="color:var(--muted);margin:0 0 16px;font-size:14px">Du bist angemeldet. Deine Stimmen, Kommentare und Likes laufen unter deinem Namen.</p>
+      <div style="height:12px"></div>
       <button class="btn ghost" data-act="profile" data-id="${S.me}" style="margin-bottom:8px">Mein Profil</button>
       <button class="btn ghost" data-act="relogin">Abmelden / Person wechseln</button></div>`, 'account');
   },
@@ -1040,7 +1043,7 @@ const actions = {
   'no-assist': () => addGoal(S.pending, null),
   'add-guest': () => {
     openSheet(`<div class="sheet-body" style="padding-top:8px"><h2 style="font:800 26px var(--display);text-transform:uppercase;margin:0 0 6px">Gastspieler</h2>
-      <p style="color:var(--muted);margin:0 0 14px;font-size:14px">Wer spielt heute mit, ist aber nicht im Kader? Der Gast bleibt gespeichert und taucht in der Statistik auf, nimmt aber nicht an der Wahl zum Spieler des Monats teil.</p>
+      <p style="color:var(--muted);margin:0 0 14px;font-size:14px">Spielt mit, ist aber nicht im Kader.</p>
       <input class="search" id="guest-name" placeholder="Vor- und Nachname" maxlength="40" autocomplete="off" enterkeyhint="done">
       <button class="btn" data-act="guest-save">Hinzufügen</button></div>`, 'guest');
     setTimeout(() => $('#guest-name')?.focus(), 350);
@@ -1206,13 +1209,13 @@ function showLogin() {
     <p class="login-sub">Willkommen! <b>Wer bist du?</b></p>
     <div class="vgrid">${people.map(p => `<div class="vc" data-act="login-pick" data-id="${p.id}">${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b>${p.no != null ? `<span>#${p.no}</span>` : `<span>${esc(p.role || '')}</span>`}</div>`).join('')}</div>
     <button class="btn ghost" data-act="login-guest" style="margin-top:16px">${I.eye} Nicht im Kader – als Gast zuschauen</button>
-    <p class="login-hint">Deine Auswahl merkt sich das Handy. Du kannst sie oben rechts jederzeit ändern.</p>`);
+`);
 }
 function loginPin(pid) {
   const p = player(pid), known = Store.online ? p.hasPin : !!D.pins?.[pid];
   loginShell(`<button class="login-back" data-act="login-back">‹ Zurück</button>
     ${imgTag(face(pid), pid, 'login-face')}<h2>${esc(p.name)}</h2>
-    <p class="login-sub">${known ? 'Gib deine 4-stellige PIN ein.' : 'Lege deine persönliche <b>4-stellige PIN</b> fest.<br>Damit kann niemand in deinem Namen abstimmen oder kommentieren. Du brauchst sie nur, wenn du dich auf einem anderen Handy anmeldest.'}</p>
+    <p class="login-sub">${known ? 'Gib deine 4-stellige PIN ein.' : 'Lege deine <b>4-stellige PIN</b> fest.'}</p>
     <input class="pw" id="pin1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" enterkeyhint="${known ? 'go' : 'next'}">
     ${known ? '' : '<input class="pw" id="pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN wiederholen" autocomplete="off" enterkeyhint="go">'}
     <div id="login-err" class="login-err"></div>
