@@ -12,7 +12,6 @@ const CONFIG = {
 /* Kader 1. Männer 2026/27 (Quelle: sgh2ku.com). Nummern laut Mannschaftsfoto. */
 const DEFAULT_PLAYERS = [
   { id: 'david-herz',           name: 'David Herz',           no: 1,  pos: 'TW' },
-  { id: 'felix-peter',          name: 'Felix Peter',          no: 1,  pos: 'TW' },
   { id: 'nico-sauer',           name: 'Nico Sauer',           no: 16, pos: 'TW' },
   { id: 'sebastian-rica-kovac', name: 'Sebastian Rica-Kovac', no: 23, pos: 'TW' },
   { id: 'alexander-kohler',     name: 'Alexander Kohler',     no: 2 },
@@ -31,7 +30,6 @@ const DEFAULT_PLAYERS = [
   { id: 'marco-melo',           name: 'Marco Melo',           role: 'Trainer' },
   { id: 'chris-duerner',        name: 'Chris Dürner',         role: 'Co-Trainer' },
   { id: 'andreas-vogt',         name: 'Andreas Vogt',         role: 'Torwart-Trainer' },
-  { id: 'juergen-beierlein',    name: 'Jürgen Beierlein',     role: 'Athletik-Trainer' }
 ];
 
 /* ---------- kleine Helfer ---------- */
@@ -142,6 +140,22 @@ const Store = {
   async addPlayer(p, pw) {
     if (this.online) { await this.post({ action: 'addPlayer', pw, player: p }); return this.load(); }
     this.data.players.push({ ...p, active: true });
+    this.cacheWrite(this.data);
+    return this.data;
+  },
+
+  async setGuestActive(id, active, pw) {
+    if (this.online) { await this.post({ action: 'setGuestActive', pw, id, active }); return this.load(); }
+    const p = this.data.players.find(x => x.id === id && x.guest);
+    if (p) p.active = active;
+    this.cacheWrite(this.data);
+    return this.data;
+  },
+
+  async deleteGuest(id, pw) {
+    if (this.online) { await this.post({ action: 'deleteGuest', pw, id }); return this.load(); }
+    if (this.data.games.some(g => g.goals.some(x => x.s === id || x.a === id))) throw new Error('Hat schon Tore oder Assists – bitte ausblenden statt löschen');
+    this.data.players = this.data.players.filter(x => x.id !== id);
     this.cacheWrite(this.data);
     return this.data;
   },

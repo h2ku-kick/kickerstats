@@ -392,6 +392,16 @@ function viewAdmin() {
   const recent = D.games.slice().reverse().slice(0, 12);
   h += `<div class="card admin-list"><div class="card-h"><h2>Gespeicherte Spiele</h2><span class="meta">${D.games.length}</span></div>
     ${recent.map(g => `<div class="row"><div class="t"><b>${new Date(g.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</b><small>${g.goals.length} Tore</small></div><button class="icon-btn" data-act="edit-game" data-id="${g.id}" aria-label="Bearbeiten">✎</button><button class="icon-btn danger" data-act="del-game" data-id="${g.id}" aria-label="Löschen">🗑</button></div>`).join('') || '<div class="empty">Noch keine.</div>'}</div>`;
+  // Gäste verwalten
+  const guests = D.players.filter(p => p.guest);
+  if (guests.length) {
+    const st = computeStats(D.games);
+    h += `<div class="card admin-list"><div class="card-h"><h2>Gäste verwalten</h2><span class="meta">${guests.length}</span></div>
+      ${guests.map(p => { const s = st[p.id] || { g: 0, a: 0 }; const used = s.g + s.a > 0; return `<div class="row" style="${p.active ? '' : 'opacity:.55'}"><div class="t"><b>${esc(p.name)}</b><small>${s.g} T · ${s.a} A${p.active ? '' : ' · ausgeblendet'}</small></div>
+        <button class="icon-btn" data-act="guest-toggle" data-id="${p.id}" aria-label="${p.active ? 'Ausblenden' : 'Einblenden'}" title="${p.active ? 'Ausblenden' : 'Einblenden'}">${p.active ? '🙈' : '👁'}</button>
+        <button class="icon-btn danger" data-act="guest-del" data-id="${p.id}" data-used="${used ? 1 : ''}" aria-label="Löschen" title="Löschen">🗑</button></div>`; }).join('')}
+      <div class="empty">🙈 Ausblenden: Der Gast verschwindet aus den Kacheln, seine Tore bleiben in der Statistik. 🗑 Löschen geht nur ohne Tore/Assists.</div></div>`;
+  }
   // Abstimmungs-Kontrolle
   const vm = [...new Set(D.votes.map(v => v.month))].sort().reverse().slice(0, 4);
   h += `<div class="card admin-list"><div class="card-h"><h2>Abstimmungen</h2><span class="meta">Kontrolle</span></div>
@@ -537,6 +547,25 @@ const actions = {
       <input class="search" id="guest-name" placeholder="Vor- und Nachname" maxlength="40" autocomplete="off" enterkeyhint="done">
       <button class="btn" data-act="guest-save">Hinzufügen</button></div>`, 'guest');
     setTimeout(() => $('#guest-name')?.focus(), 350);
+  },
+  'guest-toggle': async el => {
+    const p = player(el.dataset.id), on = !p.active;
+    el.disabled = true;
+    try { D = await Store.setGuestActive(p.id, on, S.pw); indexPlayers(); toast(on ? `👁 ${p.name} wieder sichtbar` : `🙈 ${p.name} ausgeblendet`); }
+    catch (e) { toast('Fehler: ' + e.message); }
+    render();
+  },
+  'guest-del': async el => {
+    const p = player(el.dataset.id);
+    if (el.dataset.used) {
+      if (!p.active) return toast(`${p.name} hat schon Tore/Assists und ist bereits ausgeblendet`);
+      if (!(await confirmBox('Nicht löschbar', `${esc(p.name)} hat schon Tore oder Assists. Löschen würde Spiele verfälschen.<br><br>Stattdessen ausblenden? Die Zahlen bleiben dann in der Statistik.`, 'Ausblenden'))) return;
+      try { D = await Store.setGuestActive(p.id, false, S.pw); indexPlayers(); toast(`🙈 ${p.name} ausgeblendet`); } catch (e) { toast('Fehler: ' + e.message); }
+      return render();
+    }
+    if (!(await confirmBox('Gast löschen?', `${esc(p.name)} wird endgültig entfernt.`, 'Löschen', true))) return;
+    try { D = await Store.deleteGuest(p.id, S.pw); indexPlayers(); toast(`🗑 ${p.name} gelöscht`); } catch (e) { toast('Fehler: ' + e.message); }
+    render();
   },
   'guest-save': async el => {
     const name = $('#guest-name').value.trim().replace(/\s+/g, ' ');
