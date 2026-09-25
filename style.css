@@ -110,7 +110,7 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .pod.p1 .face { width: 96px; height: 96px; }
 .pod .face img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--c); background: #243a60; }
 .pod .face .rk { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); background: var(--c); color: #1a1200; font: 800 13px/1 var(--display); padding: 3px 8px; border-radius: 999px; }
-.pod .crown { position: absolute; top: -18px; left: 50%; transform: translateX(-50%) rotate(-8deg); font-size: 22px; }
+.pod .crown { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); }
 .pod .nm { font-weight: 700; font-size: 13px; line-height: 1.15; min-height: 30px; }
 .pod .val { font: 700 30px/1 var(--display); margin-top: 2px; }
 .pod .val small { font: 500 11px var(--font); color: var(--muted); display: block; }
@@ -554,3 +554,33 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .rec-line b { color: #fff; font: 700 18px var(--display); }
 /* Flop-Ergebnisse grün statt gold */
 .results.flop .bar i { background: linear-gradient(90deg, #7fbf5a, #b9e08f); }
+
+/* ============ Icons (statt Emojis) ============ */
+.ico { width: 1.15em; height: 1.15em; vertical-align: -.22em; display: inline-block; flex: none; }
+.ico.star { color: var(--gold); transition: fill .2s; }
+.ico.star.on { fill: var(--gold); }
+.ico.heart.on { fill: currentColor; }
+.ico.flame { color: #ffb35c; }
+.fire .ico { width: 12px; height: 12px; vertical-align: -1px; margin-right: 1px; }
+.pod .crown { top: -22px; transform: translateX(-50%); color: var(--gold); line-height: 0; }
+.pod .crown .ico { width: 28px; height: 28px; }
+.card-h h2 .ic { color: var(--red2); }
+.card-h h2 .ic .ico { width: 20px; height: 20px; vertical-align: -3px; }
+.btn .ico { width: 19px; height: 19px; vertical-align: -4px; }
+.log li button.star-btn .ico { width: 19px; height: 19px; }
+.log li button.star-btn.on .ico { animation: starPop .35s cubic-bezier(.3,1.6,.5,1); }
+@keyframes starPop { 0% { transform: scale(.6); } 100% { transform: scale(1); } }
+.lk .ico { width: 18px; height: 18px; }
+.cm-new .send { display: grid; place-items: center; }
+.cm-new .send .ico { width: 17px; height: 17px; }
+.lock .big-ic { color: var(--gold); line-height: 0; }
+.lock .big-ic .ico { width: 54px; height: 54px; }
+.me-btn .ico { width: 20px; height: 20px; }
+.tip-star .ico { width: 13px; height: 13px; }
+.prompt .step .ico { width: 15px; height: 15px; vertical-align: -3px; }
+.icon-btn .ico { width: 18px; height: 18px; }
+.gl .i .ico, .best-box small .ico, .hl .lbl .ico { width: 14px; height: 14px; vertical-align: -2px; }
+.game-h .mid .ico.star { width: 14px; height: 14px; vertical-align: -2px; }
+.game-h .soc .ico { width: 13px; height: 13px; vertical-align: -2px; margin-right: 1px; }
+.winner-tag { font: 700 10px/1 var(--display); text-transform: uppercase; letter-spacing: .05em; background: rgba(255,255,255,.14); color: #fff; padding: 3px 6px; border-radius: 6px; margin-left: 4px; vertical-align: 1px; }
+.score-pill.sb small { font: 700 11px var(--display); text-transform: uppercase; opacity: .85; }

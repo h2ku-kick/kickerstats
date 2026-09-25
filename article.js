@@ -186,7 +186,7 @@ function buildArticle(ctx, variant) {
     if (best >= 3 && (!run || best > run.n)) run = { id, n: best };
   });
   if (run) paras.push({ h: null, t: one([
-    `Heißester Lauf des Monats: ${nm(run.id)} traf in ${run.n} Spielen in Folge. 🔥`,
+    `Heißester Lauf des Monats: ${nm(run.id)} traf in ${run.n} Spielen in Folge.`,
     `Eine Serie für die Chronik legte ${nm(run.id)} hin – ${run.n} Spiele am Stück mit mindestens einem Tor.`
   ]) });
 

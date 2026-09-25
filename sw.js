@@ -1,6 +1,6 @@
 /* Offline-Speicher: App-Dateien und Fotos bleiben auf dem Handy.
    Bei jeder Änderung an der App VERSION hochzählen, dann holt sich jedes Handy die neue Fassung. */
-const VERSION = 'h2ku-v11';
+const VERSION = 'h2ku-v12';
 const SHELL = ['./', 'index.html', 'style.css', 'data.js', 'article.js', 'app.js', 'manifest.webmanifest', 'img/crest.png', 'img/icon-192.png', 'img/team.jpg'];
 
 // Beim Installieren am Browser-Zwischenspeicher vorbei laden, damit keine alte Datei im Offline-Speicher landet

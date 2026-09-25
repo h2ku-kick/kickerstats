@@ -29,7 +29,32 @@ const S = {
   me: null, pin: null, guest: false,   // Anmeldung (siehe init)
   cmDraft: {}
 };
-const EMOJIS = ['🔥', '😂', '👏', '🤡'];
+const EMOJIS = ['🔥', '😂', '👏', '🤡'];   // nur für Reaktionen
+/* Icons im Stil der Navigationsleiste (Linien, runde Enden) */
+const svgI = (d, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const STAR_D = '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>';
+const I = {
+  crown: svgI('<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5z"/><path d="M5 21h14"/>', 'crown-i'),
+  card: svgI('<path d="M6 2.5h12l1.5 3v12.5L12 22l-7.5-4V5.5z"/><path d="M8 7.5h2.5M8 10h2.5"/><circle cx="14.5" cy="9" r="2"/><path d="M8 15.5h8"/>'),
+  star: svgI(STAR_D, 'star'),
+  starOn: svgI(STAR_D, 'star on'),
+  news: svgI('<path d="M4 5h13v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V5z"/><path d="M17 9h3v10a2 2 0 0 1-2 2"/><path d="M7 9h7M7 13h7M7 17h4"/>'),
+  flame: svgI('<path d="M12 21c-3.9 0-7-2.8-7-6.6 0-3.1 2.2-5.1 3.6-7.4.3 1.7 1.2 2.9 2.4 3.5C11 7.4 12.4 4.8 15 3c-.3 2.8.9 4.8 2.3 6.6 1 1.3 1.7 2.8 1.7 4.8 0 3.8-3.1 6.6-7 6.6z"/><path d="M12 21c-1.7 0-3-1.2-3-2.9 0-1.6 1.3-2.6 2.1-3.9.9 1.1 2 1.8 2.8 2.7.6.6 1.1 1.3 1.1 2.2 0 1-1.3 1.9-3 1.9z"/>', 'flame'),
+  share: svgI('<path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'),
+  refresh: svgI('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
+  copy: svgI('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>'),
+  lock: svgI('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  edit: svgI('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+  trash: svgI('<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>'),
+  eye: svgI('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  eyeOff: svgI('<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.3-.5 4.6-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'),
+  heart: svgI('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', 'heart'),
+  heartOn: svgI('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', 'heart on'),
+  send: svgI('<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>'),
+  comment: svgI('<path d="M5 18l-1 3 4-2h9a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v9"/>'),
+  ball: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10z"/>'),
+  save: svgI('<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M8 3v5h7V3"/><rect x="8" y="13" width="8" height="5" rx="1"/>')
+};
 let D = null; // Daten
 
 /* ---------- Spieler & Bilder ---------- */
@@ -80,7 +105,7 @@ function ranked(st, key) {
 /* Serien: Spiele in Folge mit Tor (bzw. mit Scorerpunkt). Kein Training = Serie reißt. */
 let _memo = { key: '', streak: {}, fifa: {} };
 /* Teams: Alt gegen Jung. Spiele ohne Teams (z. B. Altdaten) zählen für alle als "dabei". */
-const TEAMS = { alt: { name: 'Team Alt', short: 'Alt', ic: '🧓' }, jung: { name: 'Team Jung', short: 'Jung', ic: '🐣' } };
+const TEAMS = { alt: { name: 'Team Alt', short: 'Alt', ic: '' }, jung: { name: 'Team Jung', short: 'Jung', ic: '' } };
 const hasTeams = g => !!(g.teams && ((g.teams.alt || []).length || (g.teams.jung || []).length));
 const teamOf = (g, id) => !hasTeams(g) ? null : g.teams.alt.includes(id) ? 'alt' : g.teams.jung.includes(id) ? 'jung' : null;
 const played = (g, id) => !hasTeams(g) || !!teamOf(g, id);
@@ -107,7 +132,7 @@ function streakOf(id) {
   });
   return (m.streak[id] = { cur, best, curP, bestP });
 }
-const fire = id => { const n = streakOf(id).cur; return n >= 3 ? ` <span class="fire" title="${n} Spiele in Folge mit Tor">🔥${n}</span>` : ''; };
+const fire = id => { const n = streakOf(id).cur; return n >= 3 ? ` <span class="fire" title="${n} Spiele in Folge mit Tor">${I.flame}${n}</span>` : ''; };
 function formOf(id, n = 5) { return D.games.filter(g => played(g, id)).slice(-n).map(g => ({ date: g.date, g: g.goals.filter(x => x.s === id).length, a: g.goals.filter(x => x.a === id).length })); }
 function fifaOf(id) {
   const m = memo(); if (m.fifa[id]) return m.fifa[id];
@@ -191,7 +216,7 @@ function monthStepper() {
     <div class="m">${monthLabel(S.month)}<small>${games} ${games === 1 ? 'Spiel' : 'Spiele'}</small></div>
     <button data-act="month" data-v="1" ${S.month >= THIS_MONTH ? 'disabled' : ''} aria-label="Nächster Monat">›</button></div>`;
 }
-const demoPill = () => D.demo && !Store.online ? `<div class="demo-pill">🧪 Prototyp mit Beispieldaten</div>` : '';
+const demoPill = () => D.demo && !Store.online ? `<div class="demo-pill">Prototyp mit Beispieldaten</div>` : '';
 
 /* ---------- ÜBERSICHT ---------- */
 function viewHome() {
@@ -201,15 +226,15 @@ function viewHome() {
   const assisted = games.reduce((s, g) => s + g.goals.filter(x => x.a).length, 0);
   const potm = S.scope === 'month' ? potmOf(S.month) : latestPotm();
   let html = demoPill() + `<div class="card" style="padding:12px">${seg('scope', [['all', 'Gesamt'], ['month', 'Monat']], S.scope)}${S.scope === 'month' ? monthStepper() : ''}</div>`;
-  if (potm) html += `<div class="card potm" data-act="profile" data-id="${potm.id}">${imgTag(face(potm.id), potm.id)}<div><div class="lbl">🏆 Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(potm.id).name)}</div><div class="sm">${potm.votes} von ${potm.total} Stimmen</div></div></div>`;
+  if (potm) html += `<div class="card potm" data-act="profile" data-id="${potm.id}">${imgTag(face(potm.id), potm.id)}<div><div class="lbl">Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(potm.id).name)}</div><div class="sm">${potm.votes} von ${potm.total} Stimmen</div></div></div>`;
   html += `<div class="kpis">
     <div class="kpi"><b data-count="${games.length}">0</b><span>Spiele</span></div>
     <div class="kpi"><b data-count="${goals}">0</b><span>Tore</span></div>
     <div class="kpi"><b data-count="${games.length ? (goals / games.length).toFixed(1) : 0}" data-dec="1">0</b><span>Tore/Spiel</span></div>
     <div class="kpi"><b>${goals ? Math.round(assisted / goals * 100) : 0}%</b><span>mit Assist</span></div></div>`;
   if (!games.length) return html + `<div class="card"><div class="empty" style="text-align:center;padding:30px 0">Noch keine Spiele ${S.scope === 'month' ? 'in diesem Monat' : ''} eingetragen.<br>Tore werden über <b>Eintragen</b> erfasst.</div></div>`;
-  html += leaderCard('g', '⚽', 'Torjäger', st, 'Tore', 'var(--red)');
-  html += leaderCard('a', '🎯', 'Vorlagenkönige', st, 'Assists', 'var(--sky)');
+  html += leaderCard('g', '', 'Torjäger', st, 'Tore', 'var(--red)');
+  html += leaderCard('a', '', 'Vorlagenkönige', st, 'Assists', 'var(--sky)');
   html += duelCard(games);
   html += highlights(games, st);
   html += installHint();
@@ -219,13 +244,13 @@ function leaderCard(key, ic, title, st, unit, color) {
   const list = ranked(st, key);
   const top = list.slice(0, 3);
   const pod = (e, cls) => e ? `<div class="pod ${cls} pop" data-act="profile" data-id="${e.id}" style="animation-delay:${cls === 'p1' ? .05 : cls === 'p2' ? .15 : .25}s">
-      <div class="face">${cls === 'p1' ? '<span class="crown">👑</span>' : ''}${imgTag(face(e.id), e.id)}<span class="rk">${e.rank}</span></div>
+      <div class="face">${cls === 'p1' ? `<span class="crown">${I.crown}</span>` : ''}${imgTag(face(e.id), e.id)}<span class="rk">${e.rank}</span></div>
       <div class="nm">${esc(player(e.id).name)}${fire(e.id)}</div><div class="val">${e.v}<small>${unit}</small></div><div class="block"></div></div>` : `<div class="pod ${cls} empty"></div>`;
   const rest = list.slice(3);
   const open = S.showAll[key];
   const shown = open ? rest : rest.slice(0, 5);
   const max = list[0]?.v || 1;
-  return `<div class="card"><div class="card-h"><h2><span class="ic">${ic}</span>${title}</h2><span class="meta">${list.length} Spieler</span></div>
+  return `<div class="card"><div class="card-h"><h2>${ic ? `<span class="ic">${ic}</span>` : ''}${title}</h2><span class="meta">${list.length} Spieler</span></div>
     <div class="podium">${pod(top[1], 'p2')}${pod(top[0], 'p1')}${pod(top[2], 'p3')}</div>
     ${shown.length ? `<ul class="rank" style="--bc:${color}">${shown.map(e => `<li data-act="profile" data-id="${e.id}"><span class="n">${e.rank}</span>${imgTag(face(e.id), e.id)}<div class="who"><b>${esc(player(e.id).name)}${fire(e.id)}</b><div class="bar"><i data-w="${Math.round(e.v / max * 100)}"></i></div></div><span class="v">${e.v}</span></li>`).join('')}</ul>` : ''}
     ${rest.length > 5 ? `<button class="more-btn" data-act="more" data-v="${key}">${open ? 'Weniger anzeigen ▲' : `Alle ${list.length} anzeigen ▼`}</button>` : ''}</div>`;
@@ -240,15 +265,15 @@ function duelCard(games) {
   const types = D.players.map(p => ({ id: p.id, r: recordOf(p.id, games) })).filter(x => x.r.n >= min && x.r.w > 0)
     .sort((a, b) => b.r.pct - a.r.pct || b.r.w - a.r.w || a.r.l - b.r.l).slice(0, 5);
   const chip = g => { const w = winnerOf(g), sc = scoreOf(g); return `<span class="rchip ${w}" title="${new Date(g.date + 'T12:00').toLocaleDateString('de-DE')}">${w === 'draw' ? 'U' : TEAMS[w].short[0]}<small>${sc.alt}:${sc.jung}</small></span>`; };
-  return `<div class="card"><div class="card-h"><h2><span class="ic">⚔️</span>Alt gegen Jung</h2><span class="meta">${tg.length} Spiele</span></div>
+  return `<div class="card"><div class="card-h"><h2>Alt gegen Jung</h2><span class="meta">${tg.length} Spiele</span></div>
     <div class="duel">
-      <div class="dt alt ${lead === 'alt' ? 'lead' : ''}"><span>${TEAMS.alt.ic}</span><b>${d.alt}</b><small>Siege Alt</small></div>
+      <div class="dt alt ${lead === 'alt' ? 'lead' : ''}"><b>${d.alt}</b><small>Siege Alt</small></div>
       <div class="dm"><b>${d.draw}</b><small>Unentsch.</small></div>
-      <div class="dt jung ${lead === 'jung' ? 'lead' : ''}"><span>${TEAMS.jung.ic}</span><b>${d.jung}</b><small>Siege Jung</small></div>
+      <div class="dt jung ${lead === 'jung' ? 'lead' : ''}"><b>${d.jung}</b><small>Siege Jung</small></div>
     </div>
     <div class="duel-bar"><i class="alt" style="flex:${d.alt || .001}"></i><i class="draw" style="flex:${d.draw || .001}"></i><i class="jung" style="flex:${d.jung || .001}"></i></div>
     <div class="duel-sub">Tore: <b>${goals.alt}</b> Alt · <b>${goals.jung}</b> Jung · Letzte Spiele: ${tg.slice(-6).map(chip).join('')}</div>
-    ${types.length ? `<div class="sec-title" style="margin:14px 0 4px">🏆 Siegertypen</div><ul class="rank" style="--bc:var(--gold)">${types.map((x, i) => `<li data-act="profile" data-id="${x.id}"><span class="n">${i + 1}</span>${imgTag(face(x.id), x.id)}<div class="who"><b>${esc(player(x.id).name)}</b><div class="bar"><i data-w="${x.r.pct}"></i></div></div><span class="v" style="font-size:18px">${x.r.pct}%<small style="display:block;font:500 10px var(--font);color:var(--muted)">${x.r.w}-${x.r.d}-${x.r.l}</small></span></li>`).join('')}</ul>
+    ${types.length ? `<div class="sec-title" style="margin:14px 0 4px">Siegertypen</div><ul class="rank" style="--bc:var(--gold)">${types.map((x, i) => `<li data-act="profile" data-id="${x.id}"><span class="n">${i + 1}</span>${imgTag(face(x.id), x.id)}<div class="who"><b>${esc(player(x.id).name)}</b><div class="bar"><i data-w="${x.r.pct}"></i></div></div><span class="v" style="font-size:18px">${x.r.pct}%<small style="display:block;font:500 10px var(--font);color:var(--muted)">${x.r.w}-${x.r.d}-${x.r.l}</small></span></li>`).join('')}</ul>
       <div class="empty">Siegquote = gewonnene Spiele, in denen man dabei war (S-U-N). Ab ${min} Spielen mit Team.</div>` : ''}
   </div>`;
 }
@@ -262,16 +287,16 @@ function highlights(games, st) {
   const last = D.games[D.games.length - 1];
   const lastTop = last && Object.entries(last.goals.reduce((c, x) => (c[x.s] = (c[x.s] || 0) + 1, c), {})).sort((a, b) => b[1] - a[1])[0];
   const dd = iso => new Date(iso + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-  let h = `<div class="card"><div class="card-h"><h2><span class="ic">✨</span>Highlights</h2></div><div class="hl-grid">`;
+  let h = `<div class="card"><div class="card-h"><h2>Highlights</h2></div><div class="hl-grid">`;
   if (duo) { const [a, s] = duo[0].split('>'); h += `<div class="hl" data-act="profile" data-id="${s}"><div class="lbl">Top-Duo</div><div class="duo">${imgTag(face(a), a)}${imgTag(face(s), s)}</div><div class="big">${duo[1]}×</div><div class="sm">${esc(short(a))} → ${esc(short(s))}</div></div>`; }
   if (pts) h += `<div class="hl" data-act="profile" data-id="${pts.id}"><div class="lbl">Scorer-König</div><div class="duo">${imgTag(face(pts.id), pts.id)}</div><div class="big">${pts.v} Pkt.</div><div class="sm">${esc(short(pts.id))} · ${pts.s.g} T + ${pts.s.a} A</div></div>`;
   if (best) h += `<div class="hl" data-act="profile" data-id="${best.id}"><div class="lbl">Bestes Einzelspiel</div><div class="duo">${imgTag(face(best.id), best.id)}</div><div class="big">${best.n} Tore</div><div class="sm">${esc(short(best.id))} · ${dd(best.date)}</div></div>`;
   const hot = D.players.map(p => ({ id: p.id, ...streakOf(p.id) })).filter(x => x.cur >= 2).sort((a, b) => b.cur - a.cur)[0];
   const rec = D.players.map(p => ({ id: p.id, ...streakOf(p.id) })).filter(x => x.best >= 2).sort((a, b) => b.best - a.best)[0];
-  if (hot) h += `<div class="hl" data-act="profile" data-id="${hot.id}"><div class="lbl">Heißeste Serie</div><div class="duo">${imgTag(face(hot.id), hot.id)}</div><div class="big">🔥 ${hot.cur} Spiele</div><div class="sm">${esc(short(hot.id))} trifft und trifft</div></div>`;
+  if (hot) h += `<div class="hl" data-act="profile" data-id="${hot.id}"><div class="lbl">Heißeste Serie</div><div class="duo">${imgTag(face(hot.id), hot.id)}</div><div class="big">${I.flame} ${hot.cur} Spiele</div><div class="sm">${esc(short(hot.id))} trifft und trifft</div></div>`;
   if (rec && (!hot || rec.id !== hot.id || rec.best > hot.cur)) h += `<div class="hl" data-act="profile" data-id="${rec.id}"><div class="lbl">Rekord-Serie</div><div class="duo">${imgTag(face(rec.id), rec.id)}</div><div class="big">${rec.best} in Folge</div><div class="sm">${esc(short(rec.id))} · Spiele mit Tor</div></div>`;
   const lastBest = D.games.slice().reverse().map(g => ({ g, x: g.goals.find(x => x.best) })).find(o => o.x);
-  if (lastBest) h += `<div class="hl" data-act="open-game" data-id="${lastBest.g.id}"><div class="lbl">⭐ Tor des Spiels</div><div class="duo">${imgTag(face(lastBest.x.s), lastBest.x.s)}</div><div class="big" style="font-size:19px">${esc(short(lastBest.x.s))}</div><div class="sm">${lastBest.x.note ? '„' + esc(lastBest.x.note) + '“' : new Date(lastBest.g.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div></div>`;
+  if (lastBest) h += `<div class="hl" data-act="open-game" data-id="${lastBest.g.id}"><div class="lbl">${I.starOn} Tor des Spiels</div><div class="duo">${imgTag(face(lastBest.x.s), lastBest.x.s)}</div><div class="big" style="font-size:19px">${esc(short(lastBest.x.s))}</div><div class="sm">${lastBest.x.note ? '„' + esc(lastBest.x.note) + '“' : new Date(lastBest.g.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div></div>`;
   if (last) h += `<div class="hl" data-act="open-game" data-id="${last.id}"><div class="lbl">Letztes Spiel</div><div class="big" style="margin-top:8px">${winnerOf(last) ? `${scoreOf(last).alt} : ${scoreOf(last).jung}` : last.goals.length + ' Tore'}</div><div class="sm">${new Date(last.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}${lastTop ? ` · Top: ${esc(short(lastTop[0]))} (${lastTop[1]})` : ''}</div></div>`;
   return h + `</div></div>`;
 }
@@ -286,11 +311,11 @@ function viewPlayers() {
   const st = computeStats(D.games);
   const q = S.filter.toLowerCase();
   const match = p => p.active && (!q || p.name.toLowerCase().includes(q) || String(p.no ?? '') === q || (p.pos || '').toLowerCase().includes(q));
-  const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b>${q && p.pos ? `<em class="pp">${esc(p.pos)}</em>` : ''}<span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · 🔥' + streakOf(p.id).cur : ''}</span></div></div>`; };
+  const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b>${q && p.pos ? `<em class="pp">${esc(p.pos)}</em>` : ''}<span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · ' + I.flame + streakOf(p.id).cur : ''}</span></div></div>`; };
   const pl = D.players.filter(p => !p.role && !p.guest && match(p)).sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || a.name.localeCompare(b.name));
   const tr = D.players.filter(p => p.role && !p.guest && match(p));
   const gs = D.players.filter(p => p.guest && match(p));
-  return `<input class="search" type="search" placeholder="🔍 Name, Nummer oder Position" value="${esc(S.filter)}" data-input="filter">
+  return `<input class="search" type="search" placeholder="Name, Nummer oder Position suchen" value="${esc(S.filter)}" data-input="filter">
     <div class="pgrid">${pl.map(card).join('')}</div>
     ${tr.length ? `<div class="sec-title">Trainerteam</div><div class="pgrid">${tr.map(card).join('')}</div>` : ''}
     ${gs.length ? `<div class="sec-title">Gäste</div><div class="pgrid">${gs.map(card).join('')}</div>` : ''}
@@ -317,17 +342,17 @@ function openProfile(id, dir) {
   const months = [...new Set(D.games.map(g => g.date.slice(0, 7)))];
   months.forEach(m => {
     const r = ranked(computeStats(gamesIn('month', m)), 'g');
-    if (r[0] && r[0].id === id) badges.push(`👑 Torjäger ${monthLabel(m, false)}`);
-    const pm = potmOf(m); if (pm && pm.id === id) badges.push(`🏆 Spieler des Monats ${monthLabel(m, false)}`);
+    if (r[0] && r[0].id === id) badges.push(`Torjäger ${monthLabel(m, false)}`);
+    const pm = potmOf(m); if (pm && pm.id === id) badges.push(`Spieler des Monats ${monthLabel(m, false)}`);
   });
   const perGame = D.games.map(g => ({ g, n: g.goals.filter(x => x.s === id).length, a: g.goals.filter(x => x.a === id).length }));
   const hat = perGame.filter(x => x.n >= 3).length;
-  if (hat) badges.push(`🎩 ${hat}× Dreierpack`);
+  if (hat) badges.push(`${hat}× Dreierpack`);
   const tds = D.games.filter(g => g.goals.some(x => x.best && x.s === id)).length;
-  if (tds) badges.push(`⭐ ${tds}× Tor des Spiels`);
+  if (tds) badges.push(`${tds}× Tor des Spiels`);
   const sk = streakOf(id);
-  if (sk.best >= 3) badges.push(`🔥 Rekord: ${sk.best} Spiele in Folge`);
-  months.forEach(m => { const f = flopOf(m); if (f && f.id === id) badges.push(`🥴 Flop ${monthLabel(m, false)}`); });
+  if (sk.best >= 3) badges.push(`Rekord: ${sk.best} Spiele in Folge`);
+  months.forEach(m => { const f = flopOf(m); if (f && f.id === id) badges.push(`Flop ${monthLabel(m, false)}`); });
   const bestGames = perGame.filter(x => x.n + x.a > 0).sort((a, b) => (b.n + b.a) - (a.n + a.a) || b.g.date.localeCompare(a.g.date)).slice(0, 3);
 
   const body = `<div class="prof-hero">${imgTag(portrait(id), id)}
@@ -342,9 +367,9 @@ function openProfile(id, dir) {
         <div><b data-count="${s.gp}">0</b><span>Spiele mit Punkt</span><em>${D.games.length ? Math.round(s.gp / D.games.length * 100) + '%' : ''}</em></div>
       </div>
       <div class="sm" style="font-size:12px;color:var(--muted);margin:-4px 0 10px">${monthLabel(S.month)}: <b style="color:#fff">${mon.g} Tore · ${mon.a} Assists</b></div>
-      <button class="btn gold" data-act="fifa" data-id="${id}" style="margin-bottom:12px">🃏 Spielerkarte ansehen</button>
+      <button class="btn gold" data-act="fifa" data-id="${id}" style="margin-bottom:12px">${I.card} Spielerkarte ansehen</button>
       <div class="streaks">
-        <div class="${sk.cur >= 3 ? 'hot' : ''}"><b>${sk.cur >= 3 ? '🔥 ' : ''}${sk.cur}</b><span>Aktuelle Tor-Serie</span></div>
+        <div class="${sk.cur >= 3 ? 'hot' : ''}"><b>${sk.cur >= 3 ? I.flame + ' ' : ''}${sk.cur}</b><span>Aktuelle Tor-Serie</span></div>
         <div><b>${sk.best}</b><span>Rekord-Serie</span></div>
         <div><b>${sk.curP}</b><span>Serie mit Scorerpunkt</span></div>
       </div>
@@ -352,7 +377,7 @@ function openProfile(id, dir) {
       ${(() => { const r = recordOf(id); if (!r.n) return ''; const main = r.alt >= r.jung ? 'alt' : 'jung';
         return `<div class="card rec-card"><div class="card-h"><h2>Bilanz</h2><span class="meta">${r.n} Spiele mit Team</span></div>
           <div class="streaks"><div class="${r.w > r.l ? 'hot' : ''}"><b>${r.w}</b><span>Siege</span></div><div><b>${r.d}</b><span>Unentschieden</span></div><div><b>${r.l}</b><span>Niederlagen</span></div></div>
-          <div class="rec-line"><b>${r.pct} %</b> Siegquote · meist ${TEAMS[main].ic} ${TEAMS[main].name} (${r[main]}×)</div></div>`; })()}
+          <div class="rec-line"><b>${r.pct} %</b> Siegquote · meist ${TEAMS[main].name} (${r[main]}×)</div></div>`; })()}
       <div class="card"><div class="card-h"><h2>Formkurve</h2><span class="meta">letzte ${Math.min(5, D.games.length)} Spiele</span></div>${formChart(id)}</div>
       <div class="card"><div class="card-h"><h2>Verlauf</h2><span class="meta">pro Monat</span></div>${monthChart(id)}</div>
       <div class="card"><div class="partners"><div><h4>Vorlagen von</h4>${plist(from)}</div><div><h4>Legt auf für</h4>${plist(to)}</div></div></div>
@@ -365,7 +390,7 @@ function formChart(id) {
   const data = formOf(id);
   if (!data.length) return '<div class="empty">Noch keine Spiele.</div>';
   const pts = data.reduce((t, x) => t + x.g + x.a, 0), rating = fifaOf(id).FRM;
-  const label = rating >= 90 ? '🔥 Top-Form' : rating >= 75 ? '📈 Gute Form' : rating >= 60 ? '😐 Durchwachsen' : '🥶 Eiskalt';
+  const label = rating >= 90 ? 'Top-Form' : rating >= 75 ? 'Gute Form' : rating >= 60 ? 'Durchwachsen' : 'Eiskalt';
   const max = Math.max(1, ...data.map(x => x.g + x.a));
   const W = 340, H = 130, base = 104, top = 16, gw = W / data.length, bw = Math.min(34, gw * .5);
   const y = v => base - (v / max) * (base - top);
@@ -395,7 +420,7 @@ function openFifa(id) {
       <div class="fifa-foot">${s.g} Tore · ${s.a} Assists · H2Ku Kickerstats</div>
     </div></div>
     <p class="empty" style="text-align:center">Alle Werte werden aus den Zahlen berechnet – der Beste im Team bekommt 99.<br>Gesamt: Tore 25 %, Vorlagen 20 %, Scorer 20 %, Form 15 %, Konstanz 15 %, Serie 5 %.</p>
-    <button class="btn gold" data-act="fifa-share" data-id="${id}">📤 Karte teilen</button></div>`, 'fifa');
+    <button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Karte teilen</button></div>`, 'fifa');
 }
 
 function monthChart(id) {
@@ -431,32 +456,32 @@ function gameCard(g) {
   const reacts = D.reactions.filter(r => r.g === g.id);
   const cms = D.comments.filter(x => x.g === g.id).sort((a, b) => a.t.localeCompare(b.t));
   const best = g.goals.find(x => x.best);
-  const soc = [...reacts.filter(r => r.n).map(r => r.e + r.n), cms.length ? '💬' + cms.length : ''].filter(Boolean).join(' ');
+  const soc = [...reacts.filter(r => r.n).map(r => r.e + r.n), cms.length ? I.comment + cms.length : ''].filter(Boolean).join(' ');
   return `<div class="game ${S.open.has(g.id) ? 'open' : ''}" id="g-${g.id}"><div class="game-h" data-act="toggle-game" data-id="${g.id}">
       <div class="d"><b>${d.getDate()}</b><span>${d.toLocaleDateString('de-DE', { weekday: 'short' })}</span></div>
-      <div class="mid">${winnerOf(g) ? `<b class="gscore"><span class="${winnerOf(g) === 'alt' ? 'win' : ''}">${TEAMS.alt.ic} Alt</span> ${scoreOf(g).alt} : ${scoreOf(g).jung} <span class="${winnerOf(g) === 'jung' ? 'win' : ''}">Jung ${TEAMS.jung.ic}</span>${best ? ' <span class="star">⭐</span>' : ''}</b>` : `<b>Trainingskick${best ? ' <span class="star">⭐</span>' : ''}</b>`}<div class="sm">${top.map(([id, n]) => `${esc(short(id))} ${n}×`).join(' · ') || 'keine Tore'}</div>${soc ? `<div class="soc">${soc}</div>` : ''}</div>
+      <div class="mid">${winnerOf(g) ? `<b class="gscore"><span class="${winnerOf(g) === 'alt' ? 'win' : ''}">Alt</span> ${scoreOf(g).alt} : ${scoreOf(g).jung} <span class="${winnerOf(g) === 'jung' ? 'win' : ''}">Jung</span>${best ? ' ' + I.starOn : ''}</b>` : `<b>Trainingskick${best ? ' ' + I.starOn : ''}</b>`}<div class="sm">${top.map(([id, n]) => `${esc(short(id))} ${n}×`).join(' · ') || 'keine Tore'}</div>${soc ? `<div class="soc">${soc}</div>` : ''}</div>
       <span class="cnt">${g.goals.length}</span><span class="chev">▾</span></div>
     <div class="goals">
-      ${hasTeams(g) ? `<div class="teams-view">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].ic} ${TEAMS[t].name}${winnerOf(g) === t ? ' 🏆' : ''}</small><div>${g.teams[t].map(id => `<span data-act="profile" data-id="${id}" title="${esc(player(id).name)}">${imgTag(face(id), id)}</span>`).join('') || '<em>–</em>'}</div></div>`).join('')}</div>${winnerOf(g) === 'draw' ? '<div class="empty" style="text-align:center">🤝 Unentschieden</div>' : ''}` : ''}
-      ${best ? `<div class="best-box" data-act="profile" data-id="${best.s}">${imgTag(face(best.s), best.s)}<div><small>⭐ Tor des Spiels</small><b>${esc(player(best.s).name)}</b>${best.a ? `<span class="as"> ← ${esc(player(best.a).name)}</span>` : ''}${best.note ? `<p>„${esc(best.note)}“</p>` : ''}</div></div>` : ''}
-      ${g.goals.map((x, i) => `<div class="gl ${x.best ? 'is-best' : ''} ${teamOf(g, x.s) || ''}"><span class="i">${x.best ? '⭐' : i + 1}</span>${imgTag(face(x.s), x.s)}<div><b>${esc(player(x.s).name)}</b> ${x.a ? `<span class="as">← ${esc(player(x.a).name)}</span>` : '<span class="as">ohne Assist</span>'}</div></div>`).join('')}
+      ${hasTeams(g) ? `<div class="teams-view">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].name}${winnerOf(g) === t ? ' <span class="winner-tag">Sieger</span>' : ''}</small><div>${g.teams[t].map(id => `<span data-act="profile" data-id="${id}" title="${esc(player(id).name)}">${imgTag(face(id), id)}</span>`).join('') || '<em>–</em>'}</div></div>`).join('')}</div>${winnerOf(g) === 'draw' ? '<div class="empty" style="text-align:center">Unentschieden</div>' : ''}` : ''}
+      ${best ? `<div class="best-box" data-act="profile" data-id="${best.s}">${imgTag(face(best.s), best.s)}<div><small>${I.starOn} Tor des Spiels</small><b>${esc(player(best.s).name)}</b>${best.a ? `<span class="as"> ← ${esc(player(best.a).name)}</span>` : ''}${best.note ? `<p>„${esc(best.note)}“</p>` : ''}</div></div>` : ''}
+      ${g.goals.map((x, i) => `<div class="gl ${x.best ? 'is-best' : ''} ${teamOf(g, x.s) || ''}"><span class="i">${x.best ? I.starOn : i + 1}</span>${imgTag(face(x.s), x.s)}<div><b>${esc(player(x.s).name)}</b> ${x.a ? `<span class="as">← ${esc(player(x.a).name)}</span>` : '<span class="as">ohne Assist</span>'}</div></div>`).join('')}
       <div class="reacts">${EMOJIS.map(e => { const r = reacts.find(x => x.e === e); return `<button class="re ${r?.mine ? 'on' : ''}" data-act="react" data-g="${g.id}" data-e="${e}">${e}<span>${r?.n || ''}</span></button>`; }).join('')}</div>
       <div class="cmts">
         ${cms.map(x => `<div class="cm">${imgTag(face(x.pid), x.pid)}<div class="b"><div><b>${esc(player(x.pid).name)}</b> <span class="t">${ago(x.t)}</span></div><p>${esc(x.text)}</p></div>
-          <button class="lk ${x.liked ? 'on' : ''}" data-act="like" data-id="${x.id}" aria-label="Gefällt mir">${x.liked ? '♥' : '♡'}<span>${x.likes || ''}</span></button>
+          <button class="lk ${x.liked ? 'on' : ''}" data-act="like" data-id="${x.id}" aria-label="Gefällt mir">${x.liked ? I.heartOn : I.heart}<span>${x.likes || ''}</span></button>
           ${x.mine || S.pw ? `<button class="cm-x" data-act="cm-del" data-id="${x.id}" aria-label="Löschen">✕</button>` : ''}</div>`).join('')}
         ${S.me ? `<div class="cm-new"><span class="me">${imgTag(face(S.me), S.me)}</span>
           <input data-input="cm" data-g="${g.id}" placeholder="Kommentar schreiben …" maxlength="280" value="${esc(S.cmDraft[g.id] || '')}" enterkeyhint="send">
-          <button class="send" data-act="cm-send" data-g="${g.id}" aria-label="Senden">➤</button></div>`
-          : `<button class="cm-guest" data-act="relogin">👀 Als Gast liest du nur mit – <b>als Spieler anmelden</b></button>`}
+          <button class="send" data-act="cm-send" data-g="${g.id}" aria-label="Senden">${I.send}</button></div>`
+          : `<button class="cm-guest" data-act="relogin">Als Gast liest du nur mit – <b>als Spieler anmelden</b></button>`}
       </div>
     </div></div>`;
 }
 
 /* ---------- MONAT (Wahl + Artikel) ---------- */
 const VOTE_TYPES = {
-  potm: { title: 'Spieler des Monats', ic: '🏆', cta: '🗳️ Jetzt abstimmen', key: m => m },
-  flop: { title: 'Flop des Monats', ic: '🥴', cta: '🥴 Flop wählen', key: m => 'flop:' + m }
+  potm: { title: 'Spieler des Monats', cta: 'Jetzt abstimmen', key: m => m },
+  flop: { title: 'Flop des Monats', cta: 'Flop wählen', key: m => 'flop:' + m }
 };
 function voteCard(type) {
   const T = VOTE_TYPES[type], m = S.month, w = voteWindow(m), vr = voteResult(m, type);
@@ -464,14 +489,14 @@ function voteCard(type) {
   const st = computeStats(gamesIn('month', m));
   const voted = S.me && D.votes.some(v => v.month === m && v.voter === S.me && v.type === type);
   const mine = voted ? { pick: ls.get('h2ku-myvotes', {})[T.key(m)] || D.votes.find(v => v.month === m && v.voter === S.me && v.type === type)?.pick || '?' } : null;
-  let h = `<div class="card vote-${type}"><div class="card-h"><h2><span class="ic">${T.ic}</span>${T.title}</h2></div>`;
+  let h = `<div class="card vote-${type}"><div class="card-h"><h2>${T.title}</h2></div>`;
   if (w.closed) {
     if (!vr.total) h += `<div class="empty">Für ${monthLabel(m, false)} wurde nicht abgestimmt.</div>`;
     else {
       const win = vr.list[0];
       h += type === 'potm'
         ? `<div class="card potm" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><div class="lbl">Gewählt von der Mannschaft</div><div class="nm">${esc(player(win.id).name)}</div><div class="sm">${win.n} von ${vr.total} Stimmen</div></div></div>`
-        : `<div class="flop" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><b>${esc(player(win.id).name)}</b><p>${win.n} von ${vr.total} Stimmen – Kopf hoch! 😅</p></div></div>`;
+        : `<div class="flop" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><b>${esc(player(win.id).name)}</b><p>${win.n} von ${vr.total} Stimmen – Kopf hoch!</p></div></div>`;
       h += `<div class="results ${type}">${vr.list.slice(0, 6).map(r => `<div class="r">${imgTag(face(r.id), r.id)}<div class="bar"><i data-w="${Math.round(r.n / vr.total * 100)}"></i><span>${esc(player(r.id).name)}</span></div><span class="pc">${Math.round(r.n / vr.total * 100)}%</span></div>`).join('')}</div>`;
     }
   } else if (w.open) {
@@ -480,14 +505,14 @@ function voteCard(type) {
       .sort(type === 'potm' ? (a, b) => (b.s.g + b.s.a) - (a.s.g + a.s.a) || a.p.name.localeCompare(b.p.name) : (a, b) => a.p.name.localeCompare(b.p.name));
     const tipIds = type === 'potm' ? cands.filter(c => c.s.g + c.s.a > 0).slice(0, 3).map(c => c.p.id) : [];
     h += `<div class="vote-status"><span class="dot"></span>Läuft bis ${w.close.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' })} · ${vr.total} von ${voters.length} haben abgestimmt</div>`;
-    if (!S.me) h += `<div class="empty" style="margin-bottom:10px">👀 Du schaust als Gast zu. Abstimmen können nur angemeldete Spieler.</div><button class="btn ghost" data-act="relogin">Als Spieler anmelden</button>`;
+    if (!S.me) h += `<div class="empty" style="margin-bottom:10px">Du schaust als Gast zu. Abstimmen können nur angemeldete Spieler.</div><button class="btn ghost" data-act="relogin">Als Spieler anmelden</button>`;
     else if (!S.voteOpen[type]) h += `${mine ? `<div class="voted">✓ Du hast ${mine.pick !== '?' && byId[mine.pick] ? `für <b>${esc(player(mine.pick).name)}</b> ` : ''}abgestimmt</div>` : ''}
       <button class="btn ${type === 'potm' ? 'gold' : 'ghost'}" data-act="vote-toggle" data-type="${type}">${mine ? 'Stimme ändern ▾' : T.cta + ' ▾'}</button>`;
     else h += `
       <button class="more-btn" data-act="vote-toggle" data-type="${type}" style="margin:0 0 10px">Zuklappen ▴</button>
-      <div class="vgrid">${cands.map(({ p, s }) => p.id === S.me ? `<div class="vc self"><span class="tip-star">🙋</span>${imgTag(face(p.id), p.id)}<b>Du</b><span>${s.g} T · ${s.a} A</span></div>` : `<div class="vc ${sel === p.id ? 'sel' : ''}" data-act="vote-pick" data-type="${type}" data-id="${p.id}">${tipIds.includes(p.id) ? '<span class="tip-star" title="Statistik-Tipp">⭐</span>' : ''}${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b><span>${s.g} T · ${s.a} A</span></div>`).join('')}</div>
+      <div class="vgrid">${cands.map(({ p, s }) => p.id === S.me ? `<div class="vc self">${imgTag(face(p.id), p.id)}<b>Du</b><span>${s.g} T · ${s.a} A</span></div>` : `<div class="vc ${sel === p.id ? 'sel' : ''}" data-act="vote-pick" data-type="${type}" data-id="${p.id}">${tipIds.includes(p.id) ? `<span class="tip-star" title="Statistik-Tipp">${I.starOn}</span>` : ''}${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b><span>${s.g} T · ${s.a} A</span></div>`).join('')}</div>
       <div style="margin-top:14px"><button class="btn gold" data-act="vote-send" data-type="${type}" ${!sel || sel === mine?.pick ? 'disabled' : ''}>${mine ? (sel === mine.pick ? (byId[mine.pick] ? `✓ Du hast für ${esc(short(mine.pick))} gestimmt` : '✓ Abgestimmt') : 'Stimme ändern') : 'Stimme abgeben'}</button></div>
-      <div class="empty" style="text-align:center;margin-top:6px">${type === 'potm' ? '⭐ = Statistik-Tipp · ' : 'Mit einem Augenzwinkern 😉 · '}Eine Stimme pro Spieler, bis zum Ende änderbar. Für dich selbst geht nicht. Ergebnis erst nach Abschluss.</div>`;
+      <div class="empty" style="text-align:center;margin-top:6px">${type === 'potm' ? `${I.starOn} = Statistik-Tipp · ` : 'Mit einem Augenzwinkern · '}Eine Stimme pro Spieler, bis zum Ende änderbar. Für dich selbst geht nicht. Ergebnis erst nach Abschluss.</div>`;
   } else h += `<div class="empty">Die Abstimmung startet am 1. ${monthLabel(m)}.</div>`;
   return h + `</div>`;
 }
@@ -495,9 +520,9 @@ function viewMonth() {
   const games = gamesIn('month', S.month);
   let h = demoPill() + `<div class="card" style="padding:12px">${monthStepper()}</div>`;
   h += voteCard('potm') + voteCard('flop');
-  h += `<div class="card"><div class="card-h"><h2><span class="ic">📰</span>Monatsartikel</h2><span class="meta">${games.length} Spiele</span></div>
+  h += `<div class="card"><div class="card-h"><h2><span class="ic">${I.news}</span>Monatsartikel</h2><span class="meta">${games.length} Spiele</span></div>
     <p style="margin:0 0 12px;color:var(--muted);font-size:14px">Ein Zeitungsbericht über den ${monthLabel(S.month, false)}, automatisch aus den Zahlen erstellt. Er lässt sich als Bild in WhatsApp teilen.</p>
-    <button class="btn" data-act="article" ${games.length ? '' : 'disabled'}>📰 Artikel erstellen</button></div>`;
+    <button class="btn" data-act="article" ${games.length ? '' : 'disabled'}>${I.news} Artikel erstellen</button></div>`;
   return h;
 }
 
@@ -522,7 +547,7 @@ function openArticle() {
       ${a.flop ? `<div class="potm-box flop-box">${imgTag(face(a.flop.id), a.flop.id)}<div><small>Flop des Monats</small><b>${esc(player(a.flop.id).name)}</b></div></div>` : ''}
       <div class="foot">SG H2Ku Herrenberg · Trainingskick-Statistik</div>
     </div></div>
-    <div class="paper-actions"><button class="btn gold" data-act="article-share">📤 Als Bild teilen</button><button class="btn ghost sm" data-act="article-again">🎲 Neu formulieren</button><button class="btn ghost sm" data-act="article-copy">📋 Text kopieren</button></div>`;
+    <div class="paper-actions"><button class="btn gold" data-act="article-share">${I.share} Als Bild teilen</button><button class="btn ghost sm" data-act="article-again">${I.refresh} Neu formulieren</button><button class="btn ghost sm" data-act="article-copy">${I.copy} Text kopieren</button></div>`;
   openSheet(body, 'article');
 }
 
@@ -547,15 +572,15 @@ function loadScript(src) { return new Promise((res, rej) => { const s = document
 /* ---------- EINTRAGEN ---------- */
 // Ablauf: ① Teams (Alt / Jung)  ② Tore  ③ Ergebnis. Für Altdaten geht es auch ohne Teams.
 function viewAdmin() {
-  if (!S.pw) return `<div class="lock"><div class="big-ic">🔒</div><h2>Eintragen</h2><p>Nur für den Statistik-Verantwortlichen.</p>
+  if (!S.pw) return `<div class="lock"><div class="big-ic">${I.lock}</div><h2>Eintragen</h2><p>Nur für den Statistik-Verantwortlichen.</p>
     <input class="pw" id="pw" type="password" placeholder="Passwort" autocomplete="current-password" enterkeyhint="go">
     <button class="btn" data-act="login">Entsperren</button></div>`;
   const d = draft(), teams = !d.noTeams, step = d.step;
   const sc = teams ? liveScore(d) : null;
   const win = autoWinner(d);
   let h = `<div class="entry-top"><input type="date" value="${d.date}" max="${isoDate(TODAY)}" data-input="date">
-      ${teams ? `<span class="score-pill sb"><small>${TEAMS.alt.ic}</small>${sc.alt}:${sc.jung}<small>${TEAMS.jung.ic}</small></span>` : `<span class="score-pill">⚽ ${d.goals.length}</span>`}</div>
-    ${d.id ? `<div class="demo-pill" style="background:var(--sky)">✎ Du bearbeitest das Spiel vom ${new Date(d.date + 'T12:00').toLocaleDateString('de-DE')}</div>` : ''}
+      ${teams ? `<span class="score-pill sb"><small>Alt</small>${sc.alt}:${sc.jung}<small>Jung</small></span>` : `<span class="score-pill">${I.ball} ${d.goals.length}</span>`}</div>
+    ${d.id ? `<div class="demo-pill" style="background:var(--sky)">${I.edit} Du bearbeitest das Spiel vom ${new Date(d.date + 'T12:00').toLocaleDateString('de-DE')}</div>` : ''}
     <div class="steps">${[['teams', '① Teams', teams ? `${d.teams.alt.length} : ${d.teams.jung.length}` : 'ohne'], ['goals', '② Tore', d.goals.length + ''], ['result', '③ Ergebnis', teams ? (win ? (win === 'draw' ? 'Remis' : TEAMS[win].short) : '–') : '–']]
       .map(([k, l, v]) => `<button class="${step === k ? 'on' : ''}" data-act="step" data-v="${k}" ${!teams && k === 'result' ? 'disabled' : ''}><b>${l}</b><span>${v}</span></button>`).join('')}</div>`;
   if (step === 'teams') h += stepTeams(d);
@@ -578,31 +603,31 @@ function stepTeams(d) {
     <button class="btn ghost" data-act="with-teams">Doch mit Teams eintragen</button></div>
     <button class="btn" data-act="step" data-v="goals" style="margin-bottom:14px">Weiter zu den Toren →</button>`;
   const lastT = D.games.slice().reverse().find(hasTeams);
-  return `<div class="prompt"><span class="step">1</span><span style="flex:1">Wer spielt wo? <span style="color:var(--muted);font-weight:400">Tippen: Alt → Jung → nicht dabei</span></span></div>
-    <div class="team-count"><span class="alt">${TEAMS.alt.ic} Alt <b>${d.teams.alt.length}</b></span><span class="jung">${TEAMS.jung.ic} Jung <b>${d.teams.jung.length}</b></span></div>
+  return `<div class="entry"><div class="prompt"><span class="step">1</span><span style="flex:1">Wer spielt wo? <span style="color:var(--muted);font-weight:400">Tippen: Alt → Jung → nicht dabei</span></span></div>
+    <div class="team-count"><span class="alt">Alt <b>${d.teams.alt.length}</b></span><span class="jung">Jung <b>${d.teams.jung.length}</b></span></div>
     <div class="btn-row" style="margin-bottom:10px">${lastT ? '<button class="btn ghost sm" data-act="teams-last">↺ Wie letztes Mal</button>' : ''}${d.teams.alt.length + d.teams.jung.length ? '<button class="btn ghost sm" data-act="teams-clear">Alle raus</button>' : ''}</div>
     <div class="tgrid">${people.map(p => { const t = d.teams.alt.includes(p.id) ? 'alt' : d.teams.jung.includes(p.id) ? 'jung' : '';
       return `<div class="tile tm ${t ? 'in-' + t : 'out'}" data-act="team-tap" data-id="${p.id}">${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b>${t ? `<span class="tbadge ${t}">${TEAMS[t].short}</span>` : ''}</div>`; }).join('')}
       <div class="tile add" data-act="add-guest"><div class="plus-c">+</div><b>Gast</b></div></div>
     <button class="btn" data-act="step" data-v="goals" style="margin-top:14px" ${d.teams.alt.length && d.teams.jung.length ? '' : 'disabled'}>Weiter zu den Toren →</button>
-    <button class="more-btn" data-act="no-teams" style="margin:8px 0 14px">Ohne Teams eintragen (z. B. alte Spiele)</button>`;
+    <button class="more-btn" data-act="no-teams" style="margin:8px 0 14px">Ohne Teams eintragen (z. B. alte Spiele)</button></div>`;
 }
 function stepGoals(d) {
   const cnt = {}; d.goals.forEach(x => { (cnt[x.s] ||= { g: 0, a: 0 }).g++; if (x.a) (cnt[x.a] ||= { g: 0, a: 0 }).a++; });
   const assist = S.mode === 'assist', teams = !d.noTeams;
   const scorerTeam = assist && teams ? (d.teams.alt.includes(S.pending) ? 'alt' : 'jung') : null;
   let h = `<div class="entry"><div class="prompt ${assist ? 'assist' : ''}">${assist
-      ? `<span class="step">⚽</span>${imgTag(face(S.pending), S.pending)}<span style="flex:1">Tor ${esc(short(S.pending))} – <b>Assist von?</b></span><button class="icon-btn" data-act="cancel-goal" aria-label="Abbrechen">✕</button>`
+      ? `<span class="step">${I.ball}</span>${imgTag(face(S.pending), S.pending)}<span style="flex:1">Tor ${esc(short(S.pending))} – <b>Assist von?</b></span><button class="icon-btn" data-act="cancel-goal" aria-label="Abbrechen">✕</button>`
       : `<span class="step">2</span><span style="flex:1">Wer hat getroffen? <span style="color:var(--muted);font-weight:400">Antippen</span></span>`}</div>
     ${assist ? `<button class="btn gold noassist" data-act="no-assist">Ohne Assist</button>` : ''}`;
-  if (teams) h += ['alt', 'jung'].filter(t => !scorerTeam || t === scorerTeam).map(t => `<div class="team-sec ${t}"><h3>${TEAMS[t].ic} ${TEAMS[t].name} <span>${liveScore(d)[t]} Tore</span></h3>
+  if (teams) h += ['alt', 'jung'].filter(t => !scorerTeam || t === scorerTeam).map(t => `<div class="team-sec ${t}"><h3>${TEAMS[t].name} <span>${liveScore(d)[t]} Tore</span></h3>
       <div class="tgrid">${d.teams[t].map(id => tileHtml(id, assist && id === S.pending ? 'dim' : '', cnt[id])).join('')}</div></div>`).join('');
   else h += `<div class="tgrid">${D.players.filter(p => p.active).map(p => tileHtml(p.id, assist && p.id === S.pending ? 'dim' : '', cnt[p.id])).join('')}
       <div class="tile add" data-act="add-guest"><div class="plus-c">+</div><b>Gast</b></div></div>`;
   h += `<div class="card" style="margin-top:14px"><div class="card-h"><h2>Tore in diesem Spiel</h2>${d.goals.length || d.id ? `<button class="more-btn" style="width:auto;margin:0;padding:6px 10px" data-act="discard">Verwerfen</button>` : ''}</div>
-      ${d.goals.length ? `<ul class="log">${d.goals.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => { const t = teams ? (d.teams.alt.includes(x.s) ? 'alt' : 'jung') : ''; return `<li class="${x.best ? 'is-best' : ''} ${t}"><span class="i">${i + 1}</span><div class="t"><b>${esc(player(x.s).name)}</b>${t ? ` <span class="tdot ${t}">${TEAMS[t].short}</span>` : ''}<br><small>${x.a ? '← ' + esc(player(x.a).name) : 'ohne Assist'}</small></div><button class="star-btn ${x.best ? 'on' : ''}" data-act="best" data-i="${i}" aria-label="Tor des Spiels">${x.best ? '⭐' : '☆'}</button><button data-act="del-goal" data-i="${i}" aria-label="Löschen">✕</button></li>`; }).join('')}</ul>
-        ${d.goals.some(x => x.best) ? `<div class="best-note"><label>⭐ Tor des Spiels – Kommentar (optional)</label><input data-input="bestnote" maxlength="120" placeholder="z. B. Fallrückzieher aus 20 Metern" value="${esc(d.goals.find(x => x.best).note || '')}"></div>`
-          : `<div class="empty">Tipp: Mit ☆ markierst du das Tor des Spiels.</div>`}` : `<div class="empty">Noch keine Tore. Tippe oben auf den Torschützen.</div>`}
+      ${d.goals.length ? `<ul class="log">${d.goals.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => { const t = teams ? (d.teams.alt.includes(x.s) ? 'alt' : 'jung') : ''; return `<li class="${x.best ? 'is-best' : ''} ${t}"><span class="i">${i + 1}</span><div class="t"><b>${esc(player(x.s).name)}</b>${t ? ` <span class="tdot ${t}">${TEAMS[t].short}</span>` : ''}<br><small>${x.a ? '← ' + esc(player(x.a).name) : 'ohne Assist'}</small></div><button class="star-btn ${x.best ? 'on' : ''}" data-act="best" data-i="${i}" aria-label="Tor des Spiels">${x.best ? I.starOn : I.star}</button><button data-act="del-goal" data-i="${i}" aria-label="Löschen">✕</button></li>`; }).join('')}</ul>
+        ${d.goals.some(x => x.best) ? `<div class="best-note"><label>${I.starOn} Tor des Spiels – Kommentar (optional)</label><input data-input="bestnote" maxlength="120" placeholder="z. B. Fallrückzieher aus 20 Metern" value="${esc(d.goals.find(x => x.best).note || '')}"></div>`
+          : `<div class="empty">Tipp: Mit dem Stern ${I.star} markierst du das Tor des Spiels.</div>`}` : `<div class="empty">Noch keine Tore. Tippe oben auf den Torschützen.</div>`}
     </div></div>`;
   if (teams) h += `<button class="btn" data-act="step" data-v="result" style="margin-bottom:14px">Weiter zum Ergebnis →</button>`;
   return h;
@@ -611,37 +636,37 @@ function stepResult(d) {
   const sc = liveScore(d), win = autoWinner(d);
   const opt = (v, l) => `<button class="res-btn ${v} ${win === v ? 'on' : ''}" data-act="winner" data-v="${v}">${l}</button>`;
   return `<div class="card">
-      <div class="scoreboard"><div class="sb-t alt">${TEAMS.alt.ic}<b>ALT</b><small>${d.teams.alt.length} Spieler</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung">${TEAMS.jung.ic}<b>JUNG</b><small>${d.teams.jung.length} Spieler</small></div></div>
+      <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${d.teams.alt.length} Spieler</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${d.teams.jung.length} Spieler</small></div></div>
       <div class="sec-title" style="margin:14px 0 8px;text-align:center">Wer hat gewonnen?</div>
-      <div class="res-row">${opt('alt', '🏆 Alt')}${opt('draw', '🤝 Remis')}${opt('jung', '🏆 Jung')}</div>
+      <div class="res-row">${opt('alt', 'Alt')}${opt('draw', 'Remis')}${opt('jung', 'Jung')}</div>
       <div class="empty" style="text-align:center;margin-top:8px">${d.winner ? 'Von dir gewählt.' : win ? 'Automatisch aus den Toren vorgeschlagen.' : 'Noch keine Tore – bitte Sieger antippen.'} Nicht alle Tore notiert? Dann einfach den richtigen Sieger wählen.</div>
     </div>
-    <div class="teams-view" style="margin-bottom:14px">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].ic} ${TEAMS[t].name}${win === t ? ' 🏆' : ''}</small><div>${d.teams[t].map(id => imgTag(face(id), id)).join('')}</div></div>`).join('')}</div>`;
+    <div class="teams-view" style="margin-bottom:14px">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].name}${win === t ? ' <span class="winner-tag">Sieger</span>' : ''}</small><div>${d.teams[t].map(id => imgTag(face(id), id)).join('')}</div></div>`).join('')}</div>`;
 }
 function adminLists() {
   let h = '';
   const recent = D.games.slice().reverse().slice(0, 12);
   h += `<div class="card admin-list"><div class="card-h"><h2>Gespeicherte Spiele</h2><span class="meta">${D.games.length}</span></div>
-    ${recent.map(g => `<div class="row"><div class="t"><b>${new Date(g.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</b><small>${winnerOf(g) ? `Alt ${scoreOf(g).alt}:${scoreOf(g).jung} Jung · ${resultTxt(g)} · ` : ''}${g.goals.length} Tore</small></div><button class="icon-btn" data-act="edit-game" data-id="${g.id}" aria-label="Bearbeiten">✎</button><button class="icon-btn danger" data-act="del-game" data-id="${g.id}" aria-label="Löschen">🗑</button></div>`).join('') || '<div class="empty">Noch keine.</div>'}</div>`;
+    ${recent.map(g => `<div class="row"><div class="t"><b>${new Date(g.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</b><small>${winnerOf(g) ? `Alt ${scoreOf(g).alt}:${scoreOf(g).jung} Jung · ${resultTxt(g)} · ` : ''}${g.goals.length} Tore</small></div><button class="icon-btn" data-act="edit-game" data-id="${g.id}" aria-label="Bearbeiten">${I.edit}</button><button class="icon-btn danger" data-act="del-game" data-id="${g.id}" aria-label="Löschen">${I.trash}</button></div>`).join('') || '<div class="empty">Noch keine.</div>'}</div>`;
   const guests = D.players.filter(p => p.guest);
   if (guests.length) {
     const st = computeStats(D.games);
     h += `<div class="card admin-list"><div class="card-h"><h2>Gäste verwalten</h2><span class="meta">${guests.length}</span></div>
       ${guests.map(p => { const s = st[p.id] || { g: 0, a: 0 }; const used = s.g + s.a > 0 || D.games.some(g => teamOf(g, p.id)); return `<div class="row" style="${p.active ? '' : 'opacity:.55'}"><div class="t"><b>${esc(p.name)}</b><small>${s.g} T · ${s.a} A${p.active ? '' : ' · ausgeblendet'}</small></div>
-        <button class="icon-btn" data-act="guest-toggle" data-id="${p.id}" aria-label="${p.active ? 'Ausblenden' : 'Einblenden'}" title="${p.active ? 'Ausblenden' : 'Einblenden'}">${p.active ? '🙈' : '👁'}</button>
-        <button class="icon-btn danger" data-act="guest-del" data-id="${p.id}" data-used="${used ? 1 : ''}" aria-label="Löschen" title="Löschen">🗑</button></div>`; }).join('')}
-      <div class="empty">🙈 Ausblenden: Der Gast verschwindet aus den Kacheln, seine Tore bleiben in der Statistik. 🗑 Löschen geht nur ohne Tore/Assists.</div></div>`;
+        <button class="icon-btn" data-act="guest-toggle" data-id="${p.id}" aria-label="${p.active ? 'Ausblenden' : 'Einblenden'}" title="${p.active ? 'Ausblenden' : 'Einblenden'}">${p.active ? I.eyeOff : I.eye}</button>
+        <button class="icon-btn danger" data-act="guest-del" data-id="${p.id}" data-used="${used ? 1 : ''}" aria-label="Löschen" title="Löschen">${I.trash}</button></div>`; }).join('')}
+      <div class="empty">Ausblenden: Der Gast verschwindet aus den Kacheln, seine Tore bleiben in der Statistik. Löschen geht nur ohne Tore/Assists.</div></div>`;
   }
   const vm = [...new Set(D.votes.map(v => v.month))].sort().reverse().slice(0, 4);
   const all = D.players.filter(p => p.active && !p.guest);
   h += `<div class="card admin-list"><div class="card-h"><h2>Abstimmungen</h2><span class="meta">Kontrolle</span></div>
     ${vm.map(m => { const open = !voteWindow(m).closed;
       return ['potm', 'flop'].map(type => { const vs = D.votes.filter(v => v.month === m && v.type === type); const missing = all.filter(p => !vs.some(v => v.voter === p.id));
-        return `<div class="row"><div class="t"><b>${VOTE_TYPES[type].ic} ${monthLabel(m)}</b><small>${VOTE_TYPES[type].title} · ${open ? 'läuft' : 'beendet'}${open && missing.length && vs.length ? ' · fehlt noch: ' + missing.map(p => esc(short(p.id))).join(', ') : ''}</small></div><b style="font:700 20px var(--display)">${vs.length}/${all.length}</b></div>`; }).join(''); }).join('') || '<div class="empty">Noch keine Stimmen.</div>'}
+        return `<div class="row"><div class="t"><b>${monthLabel(m)}</b><small>${VOTE_TYPES[type].title} · ${open ? 'läuft' : 'beendet'}${open && missing.length && vs.length ? ' · fehlt noch: ' + missing.map(p => esc(short(p.id))).join(', ') : ''}</small></div><b style="font:700 20px var(--display)">${vs.length}/${all.length}</b></div>`; }).join(''); }).join('') || '<div class="empty">Noch keine Stimmen.</div>'}
     <div class="empty">Jeder Spieler hat pro Abstimmung genau eine Stimme (mit seiner PIN).</div></div>`;
   if (!Store.online) h += `<div class="card"><div class="card-h"><h2>Prototyp</h2></div><p style="margin:0 0 10px;color:var(--muted);font-size:13px">Die Daten liegen gerade nur auf diesem Gerät.</p>
     <div class="btn-row"><button class="btn ghost sm" data-act="demo-reset">Beispieldaten neu</button><button class="btn ghost sm" data-act="demo-empty">Alles leeren</button></div></div>`;
-  h += `<button class="btn ghost" data-act="logout" style="margin-bottom:70px">Abmelden</button>`;
+  h += `<button class="btn ghost" data-act="logout" style="margin-bottom:96px">Abmelden</button>`;
   return h;
 }
 function draft() {
@@ -660,7 +685,7 @@ function renderSaveBar() {
   const bar = document.createElement('div');
   bar.className = 'save-bar';
   const sc = !d.noTeams ? liveScore(d) : null;
-  bar.innerHTML = `<button class="btn" data-act="save-game" ${draftReady(d) ? '' : 'disabled'}>💾 Spiel speichern · ${sc ? `Alt ${sc.alt}:${sc.jung} Jung` : `${d.goals.length} ${d.goals.length === 1 ? 'Tor' : 'Tore'}`}</button>`;
+  bar.innerHTML = `<button class="btn" data-act="save-game" ${draftReady(d) ? '' : 'disabled'}>${I.save} Spiel speichern · ${sc ? `Alt ${sc.alt}:${sc.jung} Jung` : `${d.goals.length} ${d.goals.length === 1 ? 'Tor' : 'Tore'}`}</button>`;
   document.body.appendChild(bar);
 }
 
@@ -770,13 +795,13 @@ const actions = {
   'login-pick': async el => {
     // Erst wenn der Server-Stand da ist, wissen wir, ob schon eine PIN existiert
     if (Store.online && !Store.fresh) {
-      el.style.opacity = .5; toast('⏳ Einen Moment …');
+      el.style.opacity = .5; toast('Einen Moment …');
       try { D = await Store.load(); indexPlayers(); } catch { return toast('Keine Verbindung – bitte gleich nochmal'); }
     }
     loginPin(el.dataset.id);
   },
   'login-back': () => showLogin(),
-  'login-guest': () => { setMe('guest'); hideLogin(); render(); toast('👀 Viel Spaß beim Zuschauen!'); },
+  'login-guest': () => { setMe('guest'); hideLogin(); render(); toast('Viel Spaß beim Zuschauen!'); },
   'login-go': async el => {
     const pid = el.dataset.id, pin = $('#pin1').value.trim(), pin2 = $('#pin2')?.value.trim();
     const err = m => { $('#login-err').textContent = m; buzz(120); $('#pin1').classList.remove('err'); void $('#pin1').offsetWidth; $('#pin1').classList.add('err'); };
@@ -785,7 +810,7 @@ const actions = {
     el.disabled = true; el.textContent = 'Prüfe …';
     try {
       await Store.claim(pid, pin);
-      setMe({ id: pid, pin }); hideLogin(); confetti(); toast(`👋 Hallo ${player(pid).name.split(' ')[0]}!`);
+      setMe({ id: pid, pin }); hideLogin(); confetti(); toast(`Hallo ${player(pid).name.split(' ')[0]}!`);
       refresh();
     } catch (e) { el.disabled = false; el.textContent = 'Los geht’s'; err(e.message); }
   },
@@ -828,7 +853,7 @@ const actions = {
   'vote-send': async el => {
     const t = el.dataset.type, pick = S.voteSel[t];
     el.disabled = true; el.textContent = 'Wird gespeichert …';
-    try { D = await Store.vote(S.month, pick, t); const mv = ls.get('h2ku-myvotes', {}); mv[VOTE_TYPES[t].key(S.month)] = pick; ls.set('h2ku-myvotes', mv); S.voteSel[t] = null; S.voteOpen[t] = false; if (t === 'potm') confetti(); toast(t === 'potm' ? '🗳️ Danke für deine Stimme!' : '🥴 Stimme gezählt – psst!'); }
+    try { D = await Store.vote(S.month, pick, t); const mv = ls.get('h2ku-myvotes', {}); mv[VOTE_TYPES[t].key(S.month)] = pick; ls.set('h2ku-myvotes', mv); S.voteSel[t] = null; S.voteOpen[t] = false; if (t === 'potm') confetti(); toast(t === 'potm' ? 'Danke für deine Stimme!' : 'Stimme gezählt – psst!'); }
     catch (e) { toast('Fehler: ' + e.message); }
     render();
   },
@@ -836,7 +861,7 @@ const actions = {
   // Artikel
   article: () => { S.articleVariant = 0; openArticle(); },
   'article-again': () => { S.articleVariant++; closeSheet(true); openArticle(); },
-  'article-copy': async () => { try { await navigator.clipboard.writeText(articleToText(S.article)); toast('📋 Text kopiert'); } catch { toast('Kopieren nicht möglich'); } },
+  'article-copy': async () => { try { await navigator.clipboard.writeText(articleToText(S.article)); toast('Text kopiert'); } catch { toast('Kopieren nicht möglich'); } },
   'article-share': el => shareArticle(el),
 
   // Admin
@@ -865,7 +890,7 @@ const actions = {
   'guest-toggle': async el => {
     const p = player(el.dataset.id), on = !p.active;
     el.disabled = true;
-    try { D = await Store.setGuestActive(p.id, on, S.pw); indexPlayers(); toast(on ? `👁 ${p.name} wieder sichtbar` : `🙈 ${p.name} ausgeblendet`); }
+    try { D = await Store.setGuestActive(p.id, on, S.pw); indexPlayers(); toast(on ? `${p.name} wieder sichtbar` : `${p.name} ausgeblendet`); }
     catch (e) { toast('Fehler: ' + e.message); }
     render();
   },
@@ -874,11 +899,11 @@ const actions = {
     if (el.dataset.used) {
       if (!p.active) return toast(`${p.name} hat schon Tore/Assists und ist bereits ausgeblendet`);
       if (!(await confirmBox('Nicht löschbar', `${esc(p.name)} hat schon Tore oder Assists. Löschen würde Spiele verfälschen.<br><br>Stattdessen ausblenden? Die Zahlen bleiben dann in der Statistik.`, 'Ausblenden'))) return;
-      try { D = await Store.setGuestActive(p.id, false, S.pw); indexPlayers(); toast(`🙈 ${p.name} ausgeblendet`); } catch (e) { toast('Fehler: ' + e.message); }
+      try { D = await Store.setGuestActive(p.id, false, S.pw); indexPlayers(); toast(`${p.name} ausgeblendet`); } catch (e) { toast('Fehler: ' + e.message); }
       return render();
     }
     if (!(await confirmBox('Gast löschen?', `${esc(p.name)} wird endgültig entfernt.`, 'Löschen', true))) return;
-    try { D = await Store.deleteGuest(p.id, S.pw); indexPlayers(); toast(`🗑 ${p.name} gelöscht`); } catch (e) { toast('Fehler: ' + e.message); }
+    try { D = await Store.deleteGuest(p.id, S.pw); indexPlayers(); toast(`${p.name} gelöscht`); } catch (e) { toast('Fehler: ' + e.message); }
     render();
   },
   'guest-save': async el => {
@@ -889,7 +914,7 @@ const actions = {
     el.disabled = true; el.textContent = 'Speichere …';
     try {
       D = await Store.addPlayer({ id: 'gast-' + slug + '-' + uid().slice(-4), name, role: 'Gast', guest: true }, S.pw);
-      indexPlayers(); closeSheet(); render(); toast('👋 ' + name + ' ist dabei');
+      indexPlayers(); closeSheet(); render(); toast(name + ' ist dabei');
     } catch (e) { el.disabled = false; el.textContent = 'Hinzufügen'; toast('Fehler: ' + e.message); }
   },
   'cancel-goal': () => { S.mode = 'scorer'; S.pending = null; render(); },
@@ -909,7 +934,7 @@ const actions = {
     if (!g) return;
     const act = id => byId[id] && byId[id].active;
     d.teams = { alt: g.teams.alt.filter(act), jung: g.teams.jung.filter(act) }; d.winner = null;
-    saveDraft(); render(); toast(`↺ Teams vom ${new Date(g.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} übernommen – jetzt anpassen`);
+    saveDraft(); render(); toast(`Teams vom ${new Date(g.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} übernommen – jetzt anpassen`);
   },
   'teams-clear': () => { const d = draft(); if (d.goals.length) return toast('Es gibt schon Tore – erst verwerfen'); d.teams = { alt: [], jung: [] }; saveDraft(); render(); },
   'no-teams': () => { const d = draft(); d.noTeams = true; d.winner = null; saveDraft(); render(); },
@@ -925,15 +950,15 @@ const actions = {
     if (!draftReady(d)) return toast(d.noTeams ? 'Noch keine Tore eingetragen' : 'Bitte Teams und Sieger festlegen');
     const exists = !d.id && D.games.some(g => g.date === d.date);
     const win = autoWinner(d), sc = liveScore(d);
-    const summary = d.noTeams ? `${d.goals.length} Tore · ohne Teams` : `${TEAMS.alt.ic} Alt ${sc.alt} : ${sc.jung} Jung ${TEAMS.jung.ic}<br><b>${win === 'draw' ? '🤝 Unentschieden' : '🏆 Sieg ' + TEAMS[win].name}</b>`;
-    if (!(await confirmBox('Spiel speichern?', `${new Date(d.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}<br>${summary}${exists ? '<br><br>⚠️ An diesem Tag gibt es schon ein Spiel. Es wird ein zweites angelegt.' : ''}`, 'Speichern'))) return;
+    const summary = d.noTeams ? `${d.goals.length} Tore · ohne Teams` : `Alt ${sc.alt} : ${sc.jung} Jung<br><b>${win === 'draw' ? 'Unentschieden' : 'Sieg ' + TEAMS[win].name}</b>`;
+    if (!(await confirmBox('Spiel speichern?', `${new Date(d.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}<br>${summary}${exists ? '<br><br><b>Achtung:</b> An diesem Tag gibt es schon ein Spiel. Es wird ein zweites angelegt.' : ''}`, 'Speichern'))) return;
     const btn = $('.save-bar .btn'); if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
     try {
       const game = { id: d.id || uid(), date: d.date, goals: d.goals };
       if (!d.noTeams) { game.teams = { alt: d.teams.alt, jung: d.teams.jung }; game.result = { winner: win, alt: sc.alt, jung: sc.jung }; }
       D = await Store.saveGame(game, S.pw);
       S.draft = null; ls.del('h2ku-draft'); S.mode = 'scorer';
-      confetti(); buzz([30, 60, 30]); toast('✅ Gespeichert – alle sehen es jetzt');
+      confetti(); buzz([30, 60, 30]); toast('Gespeichert – alle sehen es jetzt');
       S.tab = 'home'; S.scope = 'month'; S.month = d.date.slice(0, 7); render(true); scrollTo(0, 0);
     } catch (e) { toast('Fehler: ' + e.message); if (/passwort/i.test(e.message)) { S.pw = null; ls.del('h2ku-pw'); } render(); }
   },
@@ -959,7 +984,7 @@ function addGoal(s, a) {
   buzz(35);
   render();
   const t = $('#t-' + s); t?.classList.add('flash');
-  toast(`⚽ ${short(s)}${a ? ' ← ' + short(a) : ''}`);
+  toast(`Tor ${short(s)}${a ? ' ← ' + short(a) : ''}`);
 }
 function scrollToPrompt() { const p = $('.prompt'); if (p && p.getBoundingClientRect().top < 60) p.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
 
@@ -1003,7 +1028,7 @@ function setMe(v) {
 }
 function renderMeBtn() {
   const b = $('#me-btn'); if (!b) return;
-  b.innerHTML = S.me ? imgTag(face(S.me), S.me) : S.guest ? '👀' : '?';
+  b.innerHTML = S.me ? imgTag(face(S.me), S.me) : S.guest ? I.eye : '?';
   b.title = S.me ? 'Angemeldet: ' + player(S.me).name : 'Anmelden';
 }
 function askLogin() {
@@ -1021,7 +1046,7 @@ function showLogin() {
   loginShell(`<img src="img/crest.png" alt="" class="login-crest"><h1>Kicker<span>stats</span></h1>
     <p class="login-sub">Willkommen! <b>Wer bist du?</b></p>
     <div class="vgrid">${people.map(p => `<div class="vc" data-act="login-pick" data-id="${p.id}">${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b>${p.no != null ? `<span>#${p.no}</span>` : `<span>${esc(p.role || '')}</span>`}</div>`).join('')}</div>
-    <button class="btn ghost" data-act="login-guest" style="margin-top:16px">👀 Nicht im Kader – als Gast zuschauen</button>
+    <button class="btn ghost" data-act="login-guest" style="margin-top:16px">${I.eye} Nicht im Kader – als Gast zuschauen</button>
     <p class="login-hint">Deine Auswahl merkt sich das Handy. Du kannst sie oben rechts jederzeit ändern.</p>`);
 }
 function loginPin(pid) {
