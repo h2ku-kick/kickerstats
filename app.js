@@ -26,6 +26,7 @@ const S = {
   articleVariant: 0,
   installEvt: null,
   open: new Set(),                 // aufgeklappte Spiele
+  pview: 'kader',                  // Spieler-Tab: Kader oder Karten
   me: null, pin: null, guest: false,   // Anmeldung (siehe init)
   cmDraft: {}
 };
@@ -119,7 +120,7 @@ function recordOf(id, games = D.games) {
   return r;
 }
 const resultTxt = g => { const w = winnerOf(g); return w === 'draw' ? 'Unentschieden' : w ? `Sieg ${TEAMS[w].short}` : ''; };
-function memoKey() { return D.games.length + '|' + (D.games.at(-1)?.id || '') + '|' + D.games.reduce((n, g) => n + g.goals.length, 0) + '|' + D.players.length + '|' + D.games.filter(hasTeams).length; }
+function memoKey() { return D.games.length + '|' + (D.games.at(-1)?.id || '') + '|' + D.games.reduce((n, g) => n + g.goals.length, 0) + '|' + D.players.length + '|' + D.games.filter(hasTeams).length + '|' + JSON.stringify(D.ratings?.agg || {}).length + '|' + D.players.map(p => p.base ? [p.base.tem, p.base.dri, p.base.abw].join(',') : '').join(';'); }
 function memo() { const k = memoKey(); if (_memo.key !== k) _memo = { key: k, streak: {}, fifa: {} }; return _memo; }
 function streakOf(id) {
   const m = memo(); if (m.streak[id]) return m.streak[id];
@@ -134,18 +135,125 @@ function streakOf(id) {
 }
 const fire = id => { const n = streakOf(id).cur; return n >= 3 ? ` <span class="fire" title="${n} Spiele in Folge mit Tor">${I.flame}${n}</span>` : ''; };
 function formOf(id, n = 5) { return D.games.filter(g => played(g, id)).slice(-n).map(g => ({ date: g.date, g: g.goals.filter(x => x.s === id).length, a: g.goals.filter(x => x.a === id).length })); }
-function fifaOf(id) {
-  const m = memo(); if (m.fifa[id]) return m.fifa[id];
-  const N = Math.max(1, D.games.length), st = computeStats(D.games);
-  const ids = Object.keys(st).filter(k => byId[k]);
-  const raw = k => { const s = st[k] || { g: 0, a: 0, gp: 0 }; const f = formOf(k).reduce((t, x) => t + x.g + x.a, 0);
-    return { TOR: s.g / N, VOR: s.a / N, PKT: (s.g + s.a) / N, FRM: f, KON: s.gp / N, SER: streakOf(k).best }; };
-  const all = ids.map(raw), me = raw(id), out = {};
-  Object.keys(me).forEach(key => { const max = Math.max(0, ...all.map(r => r[key])); out[key] = max > 0 ? Math.round(45 + 54 * Math.sqrt(me[key] / max)) : 45; });
-  out.OVR = Math.round(out.TOR * .25 + out.VOR * .2 + out.PKT * .2 + out.FRM * .15 + out.KON * .15 + out.SER * .05);
-  out.tier = out.OVR >= 80 ? 'gold' : out.OVR >= 65 ? 'silver' : 'bronze';
-  return (m.fifa[id] = out);
+/* Alte Tore/Assists aus der Tabelle (Spalten "Tore vorher"/"Assists vorher") – nur für Gesamtzahlen, nie für Statistiken */
+function withPrev(st) {
+  const o = {};
+  Object.values(st).forEach(x => o[x.id] = { ...x });
+  D.players.forEach(p => { if (!p.prevG && !p.prevA) return; const x = o[p.id] || (o[p.id] = { id: p.id, g: 0, a: 0, gp: 0 }); x.g += p.prevG || 0; x.a += p.prevA || 0; });
+  return o;
 }
+
+/* Spielerkarte: 3 Team-Werte (Startwert aus der Tabelle, ab 3 Bewertungen der Mannschaftsschnitt) + 3 Statistik-Werte */
+function teamVals(id) {
+  const p = player(id), a = D.ratings?.agg?.[id], b = p.base || {};
+  const useTeam = a && a.n >= 3;
+  // unter 3 Bewertungen nie den Schnitt zeigen – sonst ließe sich eine einzelne Bewertung ablesen
+  const pick = k => useTeam ? a[k] : b[k] != null ? b[k] : 50;
+  return { TEM: pick('tem'), DRI: pick('dri'), ABW: pick('abw'), n: a?.n || 0, src: useTeam ? 'team' : (b.tem != null || b.dri != null || b.abw != null) ? 'start' : 'none' };
+}
+function statRaw(games) {
+  const st = computeStats(games), out = {};
+  D.players.forEach(p => {
+    const mine = games.filter(g => played(g, p.id)), n = mine.length, s = st[p.id] || { g: 0, a: 0 };
+    const form = mine.slice(-5).reduce((t, g) => t + g.goals.filter(x => x.s === p.id).length + g.goals.filter(x => x.a === p.id).length, 0);
+    out[p.id] = { n, TOR: n ? s.g / n : 0, VOR: n ? s.a / n : 0, FRM: form };
+  });
+  return out;
+}
+function fifaOf(id, games = D.games) {
+  const live = games === D.games, m = memo();
+  if (live && m.fifa[id]) return m.fifa[id];
+  const raw = live ? (m.raw ||= statRaw(games)) : statRaw(games);
+  const minN = Math.min(3, Math.max(1, ...Object.values(raw).map(r => r.n)));
+  const pool = Object.values(raw).filter(r => r.n >= minN);
+  const me = raw[id] || { n: 0, TOR: 0, VOR: 0, FRM: 0 }, out = {};
+  ['TOR', 'VOR', 'FRM'].forEach(k => { const max = Math.max(0, ...pool.map(r => r[k])); out[k] = max > 0 ? Math.round(45 + 54 * Math.sqrt(Math.min(1, me[k] / max))) : 45; });
+  const tv = teamVals(id);
+  Object.assign(out, { TEM: tv.TEM, DRI: tv.DRI, ABW: tv.ABW, src: tv.src, votes: tv.n, games: me.n });
+  out.OVR = Math.round((out.TEM + out.DRI + out.ABW + out.TOR + out.VOR + out.FRM) / 6);
+  out.tier = out.OVR >= 80 ? 'gold' : out.OVR >= 65 ? 'silver' : 'bronze';
+  if (live) m.fifa[id] = out;
+  return out;
+}
+// Veränderung der Gesamtwertung gegenüber vor 7 Tagen
+function trendOf(id) {
+  const d = new Date(TODAY); d.setDate(d.getDate() - 7);
+  const older = D.games.filter(g => g.date <= isoDate(d));
+  if (!older.length || older.length === D.games.length || !older.some(g => played(g, id))) return 0;
+  return fifaOf(id).OVR - fifaOf(id, older).OVR;
+}
+// Sonderkarten: Spieler des Monats > In Form (bester Scorer im letzten Spiel, ab 2 Punkten) > Traumtor (meiste Tore des Spiels)
+function inFormIds() {
+  const g = D.games.at(-1); if (!g) return [];
+  const pts = {}; g.goals.forEach(x => { pts[x.s] = (pts[x.s] || 0) + 1; if (x.a) pts[x.a] = (pts[x.a] || 0) + 1; });
+  const max = Math.max(0, ...Object.values(pts));
+  return max >= 2 ? Object.keys(pts).filter(k => pts[k] === max) : [];
+}
+function dreamKing() {
+  const c = {}, last = {};
+  D.games.forEach((g, i) => g.goals.forEach(x => { if (x.best) { c[x.s] = (c[x.s] || 0) + 1; last[x.s] = i; } }));
+  const ids = Object.keys(c).filter(k => byId[k]);
+  return ids.length ? ids.sort((a, b) => c[b] - c[a] || last[b] - last[a])[0] : null;
+}
+function specialOf(id) {
+  const pm = latestPotm(); if (pm && pm.id === id) return 'potm';
+  if (inFormIds().includes(id)) return 'inform';
+  if (dreamKing() === id) return 'dream';
+  return null;
+}
+const CARD_STYLE = {
+  gold:   { g: ['#f7e08a', '#c89b2c', '#7a5a10'], stroke: '#fff6d0', ink: '#2a1d00' },
+  silver: { g: ['#f4f7fa', '#b7c1cc', '#6d7785'], stroke: '#ffffff', ink: '#1c232c' },
+  bronze: { g: ['#f1c9a0', '#c07a45', '#6e3e1c'], stroke: '#ffe3c8', ink: '#2b1606' },
+  inform: { g: ['#2c2614', '#15120a', '#0b0905'], stroke: '#d9ad55', ink: '#f7e08a', stripes: '#d9ad55', tag: 'In Form' },
+  potm:   { g: ['#7b3fd1', '#3c1a6e', '#e10026'], stroke: '#e7d4ff', ink: '#ffffff', tag: 'Spieler des Monats' },
+  dream:  { g: ['#5de0e6', '#1b6fb8', '#0b2350'], stroke: '#c8f6ff', ink: '#ffffff', tag: 'Traumtor' },
+  back:   { g: ['#0e3a78', '#0a2b5c', '#061a3a'], stroke: '#5db7ff', ink: '#ffffff' }
+};
+const SHIELD = 'M30 3H240L267 30V296L135 407L3 296V30Z';
+const shieldUri = svg => `url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, '%27')}')`;   // einfache Anführungszeichen – steht in style="…"
+function shieldBg(c) {
+  const stripes = c.stripes ? `<g clip-path="url(#c)"><path d="M60 0L10 300M140 0L60 410M230 0L130 410" stroke="${c.stripes}" stroke-opacity=".13" stroke-width="18"/></g>` : '';
+  return shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.g[0]}"/><stop offset=".55" stop-color="${c.g[1]}"/><stop offset="1" stop-color="${c.g[2]}"/></linearGradient><clipPath id="c"><path d="${SHIELD}"/></clipPath></defs><path d="${SHIELD}" fill="url(#g)"/>${stripes}<path d="${SHIELD}" fill="none" stroke="${c.stroke}" stroke-opacity=".65" stroke-width="4"/></svg>`);
+}
+const SHIELD_MASK = shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><path d="${SHIELD}" fill="#000"/></svg>`);
+function cardHtml(id, opts = {}) {
+  const p = player(id), f = fifaOf(id), sp = specialOf(id), type = sp || f.tier, c = CARD_STYLE[type];
+  const last = p.name.split(' ').slice(1).join(' ') || p.name;
+  const tr = opts.mini ? 0 : trendOf(id);
+  const row = (a, b) => `<div><span>${a}</span><b>${f[a]}</b></div><div><span>${b}</span><b>${f[b]}</b></div>`;
+  return `<div class="fc t-${type}" style="--ink:${c.ink};background-image:${shieldBg(c)}">
+    ${c.tag ? `<span class="fc-tag">${c.tag}</span>` : ''}
+    <div class="fc-top"><div class="fc-side"><div class="ovr">${f.OVR}</div><div class="pos">${esc(p.pos || (p.no != null ? '#' + p.no : p.role ? 'TR' : ''))}</div>
+      ${tr ? `<div class="trend ${tr > 0 ? 'up' : 'down'}">${tr > 0 ? '▲' : '▼'} ${Math.abs(tr)}</div>` : ''}<img src="img/crest.png" alt="" class="crest"></div>
+      <div class="fc-img" style="background-image:url('${portrait(id)}')"></div></div>
+    <div class="fc-name">${esc(last)}</div>
+    <div class="fc-stats">${row('TEM', 'TOR')}${row('DRI', 'VOR')}${row('ABW', 'FRM')}</div>
+    <div class="fc-foot">${p.no != null && p.pos ? '#' + p.no + ' · ' : ''}H2Ku</div>
+    <div class="fc-shine" style="-webkit-mask-image:${SHIELD_MASK};mask-image:${SHIELD_MASK}"></div>
+  </div>`;
+}
+function cardBack(id) {
+  const f = fifaOf(id), r = recordOf(id), sk = streakOf(id), tot = withPrev(computeStats(D.games))[id] || { g: 0, a: 0 };
+  const tds = D.games.filter(g => g.goals.some(x => x.best && x.s === id)).length;
+  const from = {}; D.games.forEach(g => g.goals.forEach(x => { if (x.s === id && x.a) from[x.a] = (from[x.a] || 0) + 1; }));
+  const fav = Object.entries(from).sort((a, b) => b[1] - a[1])[0];
+  const src = f.src === 'team' ? `Ø ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'}` : f.src === 'start' ? 'Startwerte' : 'offen';
+  const li = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
+  return `<div class="fc t-back" style="--ink:#fff;background-image:${shieldBg(CARD_STYLE.back)}">
+    <div class="fc-back-h">${esc(player(id).name)}</div>
+    <div class="fc-back">
+      ${li('Tore gesamt', tot.g)}${li('Assists gesamt', tot.a)}${li('Spiele dabei', f.games)}
+      ${r.n ? li('Bilanz S-U-N', `${r.w}-${r.d}-${r.l} · ${r.pct} %`) : ''}
+      ${li('Rekord-Serie', sk.best + ' Spiele')}${li('Tore des Spiels', tds)}
+      ${fav ? li('Top-Vorlagengeber', esc(short(fav[0])) + ' (' + fav[1] + ')') : ''}
+      ${li('Team-Werte', src)}
+    </div>
+    <div class="fc-foot">Tippen zum Umdrehen</div>
+  </div>`;
+}
+function canRate(id) { const p = player(id); return !!S.me && S.me !== id && !p.guest && p.active !== false && !p.missing; }
+
 function ago(iso) {
   const s = (Date.now() - new Date(iso)) / 1000;
   if (s < 60) return 'gerade eben'; if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`; if (s < 86400) return `vor ${Math.floor(s / 3600)} Std.`;
@@ -221,7 +329,7 @@ const demoPill = () => D.demo && !Store.online ? `<div class="demo-pill">Prototy
 /* ---------- ÜBERSICHT ---------- */
 function viewHome() {
   const games = gamesIn(S.scope, S.month);
-  const st = computeStats(games);
+  const st = S.scope === 'all' ? withPrev(computeStats(games)) : computeStats(games);
   const goals = games.reduce((s, g) => s + g.goals.length, 0);
   const assisted = games.reduce((s, g) => s + g.goals.filter(x => x.a).length, 0);
   const potm = S.scope === 'month' ? potmOf(S.month) : latestPotm();
@@ -308,14 +416,21 @@ function installHint() {
 
 /* ---------- SPIELER ---------- */
 function viewPlayers() {
-  const st = computeStats(D.games);
+  const st = withPrev(computeStats(D.games));
   const q = S.filter.toLowerCase();
   const match = p => p.active && (!q || p.name.toLowerCase().includes(q) || String(p.no ?? '') === q || (p.pos || '').toLowerCase().includes(q));
   const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b>${q && p.pos ? `<em class="pp">${esc(p.pos)}</em>` : ''}<span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · ' + I.flame + streakOf(p.id).cur : ''}</span></div></div>`; };
   const pl = D.players.filter(p => !p.role && !p.guest && match(p)).sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || a.name.localeCompare(b.name));
   const tr = D.players.filter(p => p.role && !p.guest && match(p));
   const gs = D.players.filter(p => p.guest && match(p));
-  return `<input class="search" type="search" placeholder="Name, Nummer oder Position suchen" value="${esc(S.filter)}" data-input="filter">
+  const head = `<div class="card" style="padding:12px;margin-bottom:12px">${seg('pview', [['kader', 'Kader'], ['karten', 'Karten']], S.pview)}</div>`;
+  if (S.pview === 'karten') {
+    const ids = D.players.filter(p => match(p) && !p.guest).map(p => p.id).sort((a, b) => fifaOf(b).OVR - fifaOf(a).OVR || player(a).name.localeCompare(player(b).name));
+    return head + `<input class="search" type="search" placeholder="Name, Nummer oder Position suchen" value="${esc(S.filter)}" data-input="filter">
+      <div class="gallery">${ids.map(id => `<div class="mini" data-act="fifa" data-id="${id}">${cardHtml(id, { mini: true })}</div>`).join('') || '<div class="empty">Niemand gefunden.</div>'}</div>
+      <div class="empty" style="text-align:center;margin-top:8px">Sortiert nach Gesamtwertung. Antippen öffnet die Karte.</div>`;
+  }
+  return head + `<input class="search" type="search" placeholder="Name, Nummer oder Position suchen" value="${esc(S.filter)}" data-input="filter">
     <div class="pgrid">${pl.map(card).join('')}</div>
     ${tr.length ? `<div class="sec-title">Trainerteam</div><div class="pgrid">${tr.map(card).join('')}</div>` : ''}
     ${gs.length ? `<div class="sec-title">Gäste</div><div class="pgrid">${gs.map(card).join('')}</div>` : ''}
@@ -325,7 +440,7 @@ function viewPlayers() {
 
 function openProfile(id, dir) {
   const p = player(id);
-  const all = computeStats(D.games), s = all[id] || { g: 0, a: 0, gp: 0 };
+  const all = withPrev(computeStats(D.games)), s = all[id] || { g: 0, a: 0, gp: 0 };
   const mon = computeStats(gamesIn('month', S.month))[id] || { g: 0, a: 0 };
   const rk = key => { const e = ranked(all, key).find(x => x.id === id); return e ? `#${e.rank} im Team` : ''; };
   const order = D.players.filter(x => x.active).map(x => x.id);
@@ -367,7 +482,7 @@ function openProfile(id, dir) {
         <div><b data-count="${s.gp}">0</b><span>Spiele mit Punkt</span><em>${D.games.length ? Math.round(s.gp / D.games.length * 100) + '%' : ''}</em></div>
       </div>
       <div class="sm" style="font-size:12px;color:var(--muted);margin:-4px 0 10px">${monthLabel(S.month)}: <b style="color:#fff">${mon.g} Tore · ${mon.a} Assists</b></div>
-      <button class="btn gold" data-act="fifa" data-id="${id}" style="margin-bottom:12px">${I.card} Spielerkarte ansehen</button>
+      <div class="btn-row" style="margin-bottom:12px"><button class="btn gold" data-act="fifa" data-id="${id}">${I.card} Spielerkarte</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}" style="flex:.6">Bewerten</button>` : ''}</div>
       <div class="streaks">
         <div class="${sk.cur >= 3 ? 'hot' : ''}"><b>${sk.cur >= 3 ? I.flame + ' ' : ''}${sk.cur}</b><span>Aktuelle Tor-Serie</span></div>
         <div><b>${sk.best}</b><span>Rekord-Serie</span></div>
@@ -408,20 +523,36 @@ function formChart(id) {
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Punkte in den letzten Spielen"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="rgba(255,255,255,.15)"/>${bars}</svg></div>`;
 }
 function openFifa(id) {
-  const p = player(id), f = fifaOf(id), s = computeStats(D.games)[id] || { g: 0, a: 0 };
-  const last = p.name.split(' ').slice(1).join(' ') || p.name;
-  const stat = (k, l) => `<div><b>${f[k]}</b><span>${l}</span></div>`;
+  const f = fifaOf(id);
   openSheet(`<div class="sheet-body" style="padding-top:18px">
-    <div class="fifa-wrap"><div class="fifa ${f.tier}" id="fifa">
-      <div class="fifa-top"><div class="fifa-side"><div class="ovr">${f.OVR}</div><div class="pos">${p.no != null ? '#' + p.no : esc(p.role || 'Gast')}</div><img src="img/crest.png" alt="" class="crest"></div>
-        <div class="fifa-img" style="background-image:url('${portrait(id)}')"></div></div>
-      <div class="fifa-name">${esc(last)}${p.pos ? `<small>${esc(p.pos)}</small>` : ''}</div>
-      <div class="fifa-stats">${stat('TOR', 'Tore')}${stat('VOR', 'Vorlagen')}${stat('PKT', 'Scorer')}${stat('FRM', 'Form')}${stat('KON', 'Konstanz')}${stat('SER', 'Serie')}</div>
-      <div class="fifa-foot">${s.g} Tore · ${s.a} Assists · H2Ku Kickerstats</div>
+    <div class="fc-scene"><div class="fc-flip" data-act="flip">
+      <div class="fc-face front" id="fifa">${cardHtml(id)}</div>
+      <div class="fc-face back">${cardBack(id)}</div>
     </div></div>
-    <p class="empty" style="text-align:center">Alle Werte werden aus den Zahlen berechnet – der Beste im Team bekommt 99.<br>Gesamt: Tore 25 %, Vorlagen 20 %, Scorer 20 %, Form 15 %, Konstanz 15 %, Serie 5 %.</p>
-    <button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Karte teilen</button></div>`, 'fifa');
+    <p class="empty" style="text-align:center;margin:4px 0 12px">Tippe auf die Karte, um sie umzudrehen.</p>
+    <div class="btn-row"><button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Teilen</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}">Bewerten</button>` : ''}</div>
+    <p class="empty" style="text-align:center;margin-top:12px">TEM, DRI, ABW: ${f.src === 'team' ? `Durchschnitt aus ${f.votes} Bewertungen der Mannschaft` : f.src === 'start' ? 'Startwerte – ab 3 Bewertungen zählt der Mannschaftsschnitt' : 'noch keine Werte – ab 3 Bewertungen zählt der Mannschaftsschnitt'}.<br>TOR, VOR: pro Spiel, in dem man dabei war · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte.</p>
+  </div>`, 'fifa');
+  startShine();
 }
+function openRate(id) {
+  const cur = D.ratings.mine[id] || teamVals(id);
+  const v = { tem: cur.tem ?? cur.TEM, dri: cur.dri ?? cur.DRI, abw: cur.abw ?? cur.ABW };
+  const sl = (k, l) => `<div class="rate-row"><label>${l}<b id="rv-${k}">${v[k]}</b></label><input type="range" min="1" max="99" step="1" value="${v[k]}" data-input="rate" data-k="${k}"></div>`;
+  openSheet(`<div class="sheet-body" style="padding-top:8px"><h2 style="font:800 26px var(--display);text-transform:uppercase;margin:0 0 4px">${esc(player(id).name)}</h2>
+    <p style="color:var(--muted);margin:0 0 14px;font-size:14px">Wie schätzt du ihn ein? Deine Bewertung bleibt geheim – auf der Karte steht nur der Durchschnitt, sobald mindestens 3 Mitspieler bewertet haben. Du kannst sie jederzeit ändern.</p>
+    ${sl('tem', 'Tempo')}${sl('dri', 'Dribbling')}${sl('abw', 'Abwehr')}
+    <button class="btn gold" data-act="rate-save" data-id="${id}" style="margin-top:8px">${D.ratings.mine[id] ? 'Bewertung ändern' : 'Bewertung speichern'}</button></div>`, 'rate');
+}
+// Glanz: folgt der Handy-Neigung (oder dem Finger/Mauszeiger), sonst läuft er langsam von selbst
+let shineOn = false;
+function setShine(x) { document.documentElement.style.setProperty('--gx', Math.max(0, Math.min(100, x)) + '%'); document.querySelectorAll('.fc-shine').forEach(e => e.classList.add('live')); }
+function startShine() {
+  if (shineOn) return; shineOn = true;
+  window.addEventListener('deviceorientation', e => { if (e.gamma != null) setShine((e.gamma + 40) / 80 * 100); });
+  document.addEventListener('pointermove', e => { const c = e.target.closest?.('.fc-scene'); if (!c) return; const r = c.getBoundingClientRect(); setShine((e.clientX - r.left) / r.width * 100); });
+}
+function askMotion() { try { if (window.DeviceOrientationEvent?.requestPermission && !S.motionAsked) { S.motionAsked = true; DeviceOrientationEvent.requestPermission().catch(() => {}); } } catch {} }
 
 function monthChart(id) {
   const months = [];
@@ -766,7 +897,20 @@ const actions = {
   'toggle-game': el => { const id = el.dataset.id, g = el.closest('.game'); g.classList.toggle('open'); g.classList.add('opening'); setTimeout(() => g.classList.remove('opening'), 300); g.classList.contains('open') ? S.open.add(id) : S.open.delete(id); },
   'open-game': el => { S.open.add(el.dataset.id); S.tab = 'games'; closeSheet(true); render(true); setTimeout(() => $('#g-' + el.dataset.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80); },
   fifa: el => openFifa(el.dataset.id),
-  'fifa-share': el => shareNode(el, $('#fifa'), `H2Ku-Karte-${el.dataset.id}.png`, player(el.dataset.id).name, null),
+  'fifa-share': async el => {
+    $('.fc-flip')?.classList.remove('flipped'); document.body.classList.add('sharing');
+    try { await shareNode(el, $('#fifa .fc'), `H2Ku-Karte-${el.dataset.id}.png`, player(el.dataset.id).name, null); } finally { document.body.classList.remove('sharing'); }
+  },
+  flip: el => { el.classList.toggle('flipped'); askMotion(); buzz(10); },
+  'rate-open': el => openRate(el.dataset.id),
+  'rate-save': async el => {
+    const id = el.dataset.id, vals = {};
+    document.querySelectorAll('input[data-input=rate]').forEach(i => vals[i.dataset.k] = +i.value);
+    el.disabled = true; el.textContent = 'Speichere …';
+    try { D = await Store.rate(id, vals); indexPlayers(); closeSheet(true); toast('Bewertung gespeichert'); openFifa(id); }
+    catch (e) { el.disabled = false; el.textContent = 'Bewertung speichern'; toast('Fehler: ' + e.message); }
+  },
+  pview: el => { S.pview = el.dataset.v; render(); },
 
   // Reaktionen & Kommentare
   react: async el => {
@@ -999,6 +1143,7 @@ document.addEventListener('input', e => {
   if (k === 'filter') { S.filter = e.target.value; const pos = e.target.selectionStart; render(); const inp = $('.search'); inp.focus(); inp.setSelectionRange(pos, pos); }
   if (k === 'date') { draft().date = e.target.value || isoDate(TODAY); saveDraft(); }
   if (k === 'cm') S.cmDraft[e.target.dataset.g] = e.target.value;
+  if (k === 'rate') { const o = document.getElementById('rv-' + e.target.dataset.k); if (o) o.textContent = e.target.value; }
   if (k === 'bestnote') { const b = draft().goals.find(x => x.best); if (b) { b.note = e.target.value.slice(0, 120); saveDraft(); } }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pw') actions.login($('[data-act=login]')); if (e.key === 'Enter' && e.target.id === 'guest-name') actions['guest-save']($('[data-act=guest-save]')); if (e.key === 'Enter' && e.target.id === 'pin1' && !$('#pin2')) actions['login-go']($('[data-act=login-go]')); if (e.key === 'Enter' && e.target.id === 'pin2') actions['login-go']($('[data-act=login-go]')); if (e.key === 'Enter' && e.target.dataset.input === 'cm') { e.preventDefault(); actions['cm-send']($(`[data-act=cm-send][data-g="${e.target.dataset.g}"]`)); } if (e.key === 'Escape') closeSheet(); });

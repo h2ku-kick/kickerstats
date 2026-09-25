@@ -97,7 +97,8 @@ const Store = {
     d = d || {};
     const players = (d.players && d.players.length ? d.players : DEFAULT_PLAYERS).map(p => ({ ...p, active: p.active !== false, guest: !!p.guest }));
     return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: (d.votes || []).map(v => ({ ...v, type: v.type === 'flop' ? 'flop' : 'potm' })),
-      reactions: d.reactions || [], comments: d.comments || [], months: d.months || [], pins: d.pins || {}, demo: !!d.demo };
+      reactions: d.reactions || [], comments: d.comments || [], months: d.months || [], pins: d.pins || {}, demo: !!d.demo,
+      ratings: { agg: (d.ratings && d.ratings.agg) || {}, mine: (d.ratings && d.ratings.mine) || {} } };
   },
 
   /* Sofort aus dem Speicher des Geräts, dann (online) frisch nachladen */
@@ -184,7 +185,7 @@ const Store = {
 
   async vote(month, pick, type = 'potm') {
     if (!this.me) throw new Error('Bitte als Spieler anmelden');
-    if (pick === this.me.id) throw new Error('Für dich selbst kannst du nicht stimmen 😉');
+    if (pick === this.me.id) throw new Error('Für dich selbst kannst du nicht stimmen');
     if (this.online) { await this.post({ action: 'vote', month, pick, type, ...this.cred() }); return this.load(); }
     this.data.votes = this.data.votes.filter(v => !(v.month === month && v.voter === this.me.id && v.type === type));
     this.data.votes.push({ month, pick, voter: this.me.id, type });
@@ -226,6 +227,18 @@ const Store = {
     this.cacheWrite(this.data);
     return this.data;
   },
+  async rate(target, vals) {
+    if (!this.me) throw new Error('Bitte als Spieler anmelden');
+    if (target === this.me.id) throw new Error('Dich selbst kannst du nicht bewerten');
+    if (this.online) { await this.post({ action: 'rate', target, ...vals, ...this.cred() }); return this.load(); }
+    const r = this.data.ratings, old = r.mine[target], a = r.agg[target] || (r.agg[target] = { n: 0, tem: 0, dri: 0, abw: 0 });
+    ['tem', 'dri', 'abw'].forEach(k => { const sum = a[k] * a.n - (old ? old[k] : 0) + vals[k]; a[k] = Math.round(sum / (a.n + (old ? 0 : 1))); });
+    if (!old) a.n++;
+    r.mine[target] = { ...vals };
+    this.cacheWrite(this.data);
+    return this.data;
+  },
+
   async setFlop(month, flop, note, pw) {
     if (this.online) { await this.post({ action: 'setFlop', pw, month, flop, note }); return this.load(); }
     this.data.months = this.data.months.filter(x => x.m !== month);
