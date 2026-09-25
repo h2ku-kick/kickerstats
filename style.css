@@ -466,3 +466,6 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .login-face, .acc-face { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; margin: 0 auto; border: 4px solid var(--red); display: block; }
 .login-err { color: var(--red2); font-weight: 600; min-height: 20px; margin-bottom: 8px; font-size: 14px; }
 .login .vgrid .vc span { display: block; }
+
+.voted { padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; background: rgba(217,173,85,.14); border: 1px solid rgba(217,173,85,.4); font-size: 14px; }
+.voted b { color: var(--gold); }

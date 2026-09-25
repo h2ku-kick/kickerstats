@@ -430,9 +430,12 @@ function viewMonth() {
     const tipIds = cands.filter(c => c.s.g + c.s.a > 0).slice(0, 3).map(c => c.p.id);
     h += `<div class="vote-status"><span class="dot"></span>Läuft bis ${w.close.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long' })} · ${vr.total} von ${voters.length} haben abgestimmt</div>`;
     if (!S.me) h += `<div class="empty" style="margin-bottom:10px">👀 Du schaust als Gast zu. Abstimmen können nur angemeldete Spieler.</div><button class="btn ghost" data-act="relogin">Als Spieler anmelden</button>`;
+    else if (!S.voteOpen) h += `${mine ? `<div class="voted">✓ Du hast ${mine.pick !== '?' && byId[mine.pick] ? `für <b>${esc(player(mine.pick).name)}</b> ` : ''}abgestimmt</div>` : ''}
+      <button class="btn gold" data-act="vote-toggle">${mine ? 'Stimme ändern ▾' : '🗳️ Jetzt abstimmen ▾'}</button>`;
     else h += `
+      <button class="more-btn" data-act="vote-toggle" style="margin:0 0 10px">Zuklappen ▴</button>
       <div class="vgrid">${cands.map(({ p, s }) => p.id === S.me ? `<div class="vc self"><span class="tip-star">🙋</span>${imgTag(face(p.id), p.id)}<b>Du</b><span>${s.g} T · ${s.a} A</span></div>` : `<div class="vc ${sel === p.id ? 'sel' : ''}" data-act="vote-pick" data-id="${p.id}">${tipIds.includes(p.id) ? '<span class="tip-star" title="Statistik-Tipp">⭐</span>' : ''}${imgTag(face(p.id), p.id)}<b>${esc(short(p.id))}</b><span>${s.g} T · ${s.a} A</span></div>`).join('')}</div>
-      <div style="margin-top:14px"><button class="btn gold" data-act="vote-send" ${!sel || sel === mine?.pick ? 'disabled' : ''}>${mine ? (sel === mine.pick ? `✓ Du hast für ${esc(short(mine.pick))} gestimmt` : 'Stimme ändern') : 'Stimme abgeben'}</button></div>
+      <div style="margin-top:14px"><button class="btn gold" data-act="vote-send" ${!sel || sel === mine?.pick ? 'disabled' : ''}>${mine ? (sel === mine.pick ? (byId[mine.pick] ? `✓ Du hast für ${esc(short(mine.pick))} gestimmt` : '✓ Abgestimmt') : 'Stimme ändern') : 'Stimme abgeben'}</button></div>
       <div class="empty" style="text-align:center;margin-top:6px">⭐ = Statistik-Tipp · Eine Stimme pro Spieler, bis zum Ende änderbar. Für dich selbst geht nicht. Ergebnis erst nach Abschluss.</div>`;
   } else h += `<div class="empty">Die Abstimmung startet am 1. ${monthLabel(S.month)}.</div>`;
   h += `</div>`;
@@ -623,7 +626,7 @@ function buzz(ms = 25) { try { navigator.vibrate && navigator.vibrate(ms); } cat
 const actions = {
   tab: el => { S.tab = el.dataset.v; closeSheet(true); scrollTo(0, 0); render(true); },
   scope: el => { S.scope = el.dataset.v; ls.set('h2ku-scope', S.scope); render(); },
-  month: el => { S.month = shiftMonth(S.month, +el.dataset.v); S.voteSel = null; render(); },
+  month: el => { S.month = shiftMonth(S.month, +el.dataset.v); S.voteSel = null; S.voteOpen = false; render(); },
   more: el => { S.showAll[el.dataset.v] = !S.showAll[el.dataset.v]; render(); },
   profile: el => { buzz(10); openProfile(el.dataset.id, el.dataset.dir); },
   close: () => closeSheet(),
@@ -735,10 +738,11 @@ const actions = {
   'install-hide': () => { ls.set('h2ku-install-hide', true); closeSheet(); render(); },
 
   // Abstimmung
+  'vote-toggle': () => { S.voteOpen = !S.voteOpen; S.voteSel = null; buzz(10); render(); },
   'vote-pick': el => { buzz(10); S.voteSel = el.dataset.id; render(); },
   'vote-send': async el => {
     el.disabled = true; el.textContent = 'Wird gespeichert …';
-    try { const pick = S.voteSel; D = await Store.vote(S.month, pick); const mv = ls.get('h2ku-myvotes', {}); mv[S.month] = pick; ls.set('h2ku-myvotes', mv); S.voteSel = null; confetti(); toast('🗳️ Danke für deine Stimme!'); }
+    try { const pick = S.voteSel; D = await Store.vote(S.month, pick); const mv = ls.get('h2ku-myvotes', {}); mv[S.month] = pick; ls.set('h2ku-myvotes', mv); S.voteSel = null; S.voteOpen = false; confetti(); toast('🗳️ Danke für deine Stimme!'); }
     catch (e) { toast('Fehler: ' + e.message); }
     render();
   },
