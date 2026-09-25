@@ -242,12 +242,12 @@ function installHint() {
 function viewPlayers() {
   const st = computeStats(D.games);
   const q = S.filter.toLowerCase();
-  const match = p => p.active && (!q || p.name.toLowerCase().includes(q) || String(p.no ?? '') === q);
-  const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b><span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · 🔥' + streakOf(p.id).cur : ''}</span></div></div>`; };
+  const match = p => p.active && (!q || p.name.toLowerCase().includes(q) || String(p.no ?? '') === q || (p.pos || '').toLowerCase().includes(q));
+  const card = p => { const s = st[p.id] || { g: 0, a: 0 }; return `<div class="pcard" data-act="profile" data-id="${p.id}">${imgTag(portrait(p.id), p.id)}${p.role ? `<span class="no tr">${esc(p.role.replace('-Trainer', ''))}</span>` : p.no != null ? `<span class="no">${p.no}</span>` : ''}<div class="ov"><b>${esc(p.name)}</b>${p.pos ? `<em class="pp">${esc(p.pos)}</em>` : ''}<span>${s.g} T · ${s.a} A${streakOf(p.id).cur >= 3 ? ' · 🔥' + streakOf(p.id).cur : ''}</span></div></div>`; };
   const pl = D.players.filter(p => !p.role && !p.guest && match(p)).sort((a, b) => (a.no ?? 999) - (b.no ?? 999) || a.name.localeCompare(b.name));
   const tr = D.players.filter(p => p.role && !p.guest && match(p));
   const gs = D.players.filter(p => p.guest && match(p));
-  return `<input class="search" type="search" placeholder="🔍 Spieler oder Nummer suchen" value="${esc(S.filter)}" data-input="filter">
+  return `<input class="search" type="search" placeholder="🔍 Name, Nummer oder Position" value="${esc(S.filter)}" data-input="filter">
     <div class="pgrid">${pl.map(card).join('')}</div>
     ${tr.length ? `<div class="sec-title">Trainerteam</div><div class="pgrid">${tr.map(card).join('')}</div>` : ''}
     ${gs.length ? `<div class="sec-title">Gäste</div><div class="pgrid">${gs.map(card).join('')}</div>` : ''}
@@ -290,7 +290,7 @@ function openProfile(id, dir) {
   const body = `<div class="prof-hero">${imgTag(portrait(id), id)}
       <button class="prof-nav l" data-act="profile" data-id="${prev}" data-dir="l" aria-label="Vorheriger">‹</button>
       <button class="prof-nav r" data-act="profile" data-id="${next}" data-dir="r" aria-label="Nächster">›</button>
-      <div class="info">${p.no != null ? `<div class="no">#${p.no}</div>` : ''}<h2>${esc(p.name)}</h2><div class="role">${esc(p.guest ? 'Gastspieler' : (p.role || 'Spieler') + ' · 1. Männer')}</div></div></div>
+      <div class="info">${p.no != null ? `<div class="no">#${p.no}</div>` : ''}<h2>${esc(p.name)}</h2><div class="role">${esc(p.guest ? 'Gastspieler' : (p.pos || p.role || 'Spieler') + ' · 1. Männer')}</div></div></div>
     <div class="sheet-body">
       <div class="stat4">
         <div><b data-count="${s.g}">0</b><span>Tore</span><em>${rk('g')}</em></div>
@@ -343,7 +343,7 @@ function openFifa(id) {
     <div class="fifa-wrap"><div class="fifa ${f.tier}" id="fifa">
       <div class="fifa-top"><div class="fifa-side"><div class="ovr">${f.OVR}</div><div class="pos">${p.no != null ? '#' + p.no : esc(p.role || 'Gast')}</div><img src="img/crest.png" alt="" class="crest"></div>
         <div class="fifa-img" style="background-image:url('${portrait(id)}')"></div></div>
-      <div class="fifa-name">${esc(last)}</div>
+      <div class="fifa-name">${esc(last)}${p.pos ? `<small>${esc(p.pos)}</small>` : ''}</div>
       <div class="fifa-stats">${stat('TOR', 'Tore')}${stat('VOR', 'Vorlagen')}${stat('PKT', 'Scorer')}${stat('FRM', 'Form')}${stat('KON', 'Konstanz')}${stat('SER', 'Serie')}</div>
       <div class="fifa-foot">${s.g} Tore · ${s.a} Assists · H2Ku Kickerstats</div>
     </div></div>

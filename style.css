@@ -469,3 +469,7 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 
 .voted { padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; background: rgba(217,173,85,.14); border: 1px solid rgba(217,173,85,.4); font-size: 14px; }
 .voted b { color: var(--gold); }
+
+/* Handball-Position */
+.pcard .ov .pp { display: block; font-style: normal; font-size: 11px; font-weight: 600; color: var(--gold); margin: 1px 0 1px; line-height: 1.2; }
+.fifa-name small { display: block; font: 700 12px var(--font); letter-spacing: .08em; opacity: .75; margin-top: 4px; }
