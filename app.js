@@ -656,7 +656,14 @@ const actions = {
       <button class="btn ghost" data-act="relogin">Abmelden / Person wechseln</button></div>`, 'account');
   },
   relogin: () => { closeSheet(true); setMe(null); render(); showLogin(); },
-  'login-pick': el => loginPin(el.dataset.id),
+  'login-pick': async el => {
+    // Erst wenn der Server-Stand da ist, wissen wir, ob schon eine PIN existiert
+    if (Store.online && !Store.fresh) {
+      el.style.opacity = .5; toast('⏳ Einen Moment …');
+      try { D = await Store.load(); indexPlayers(); } catch { return toast('Keine Verbindung – bitte gleich nochmal'); }
+    }
+    loginPin(el.dataset.id);
+  },
   'login-back': () => showLogin(),
   'login-guest': () => { setMe('guest'); hideLogin(); render(); toast('👀 Viel Spaß beim Zuschauen!'); },
   'login-go': async el => {
@@ -934,5 +941,15 @@ async function refresh() {
   refresh();
   $('#sync').addEventListener('click', refresh);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    // Neue Fassung verfügbar → einmal automatisch neu laden (nur wenn vorher schon eine Fassung aktiv war)
+    const hadOld = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadOld && !reloaded) { reloaded = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+      reg.update().catch(() => {});
+      // Homescreen-Apps werden selten neu geladen: bei jedem Zurückkehren nach Updates schauen
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
+  }
 })();

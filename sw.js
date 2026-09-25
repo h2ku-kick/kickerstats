@@ -1,10 +1,11 @@
 /* Offline-Speicher: App-Dateien und Fotos bleiben auf dem Handy.
    Bei jeder Änderung an der App VERSION hochzählen, dann holt sich jedes Handy die neue Fassung. */
-const VERSION = 'h2ku-v5';
+const VERSION = 'h2ku-v7';
 const SHELL = ['./', 'index.html', 'style.css', 'data.js', 'article.js', 'app.js', 'manifest.webmanifest', 'img/crest.png', 'img/icon-192.png', 'img/team.jpg'];
 
+// Beim Installieren am Browser-Zwischenspeicher vorbei laden, damit keine alte Datei im Offline-Speicher landet
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -14,8 +15,12 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (url.hostname.includes('script.google')) return;          // Daten immer frisch
   if (url.origin === location.origin && /\.(html|js|css|webmanifest)$|\/$/.test(url.pathname)) {
-    // App-Dateien: erst Netz (neueste Version), sonst Speicher
-    e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request)));
+    // App-Dateien: immer zuerst die neueste Fassung vom Server (ohne Browser-Zwischenspeicher), offline aus dem Speicher
+    const key = url.origin + url.pathname;
+    e.respondWith(fetch(key, { cache: 'no-store' }).then(r => {
+      if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(key, copy)); }
+      return r;
+    }).catch(() => caches.match(key).then(hit => hit || caches.match('./'))));
     return;
   }
   // Fotos, Schriften: erst Speicher, sonst Netz

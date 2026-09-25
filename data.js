@@ -116,6 +116,7 @@ const Store = {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Laden fehlgeschlagen');
     this.data = this.normalize(json.data);
+    this.fresh = true;                          // aktueller Stand vom Server ist da
     this.cacheWrite(this.data);
     return this.data;
   },
