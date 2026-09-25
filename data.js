@@ -11,9 +11,9 @@ const CONFIG = {
 
 /* Kader 1. Männer 2026/27 (Quelle: sgh2ku.com). Nummern laut Mannschaftsfoto. */
 const DEFAULT_PLAYERS = [
-  { id: 'david-herz',           name: 'David Herz',           no: 1,  pos: 'TW' },
-  { id: 'nico-sauer',           name: 'Nico Sauer',           no: 16, pos: 'TW' },
-  { id: 'sebastian-rica-kovac', name: 'Sebastian Rica-Kovac', no: 23, pos: 'TW' },
+  { id: 'david-herz',           name: 'David Herz',           no: 1 },
+  { id: 'nico-sauer',           name: 'Nico Sauer',           no: 16 },
+  { id: 'sebastian-rica-kovac', name: 'Sebastian Rica-Kovac', no: 23 },
   { id: 'alexander-kohler',     name: 'Alexander Kohler',     no: 2 },
   { id: 'luca-kaelbly',         name: 'Luca Kälbly',          no: 4 },
   { id: 'lennart-lohrer',       name: 'Lennart Lohrer',       no: 5 },
@@ -50,7 +50,7 @@ function deviceId() {
 function buildDemo() {
   const r = rng(2627);
   const field = DEFAULT_PLAYERS.filter(p => !p.role);
-  const weight = p => p.pos === 'TW' ? 0.45 : ({ 'leon-fischer': 2.2, 'tim-frommer': 1.9, 'kenneth-stiegen': 1.7, 'luca-kaelbly': 1.5, 'finn-boehm': 1.4 }[p.id] || 1);
+  const weight = p => ({ 'leon-fischer': 2.2, 'tim-frommer': 1.9, 'kenneth-stiegen': 1.7, 'luca-kaelbly': 1.5, 'finn-boehm': 1.4 }[p.id] || 1);
   const pool = [...field, ...DEFAULT_PLAYERS.filter(p => p.role).slice(0, 2)];
   const pick = (excl) => {
     const list = pool.filter(p => p.id !== excl);
@@ -74,8 +74,9 @@ function buildDemo() {
   }
   const votes = [];
   const cands = ['leon-fischer', 'tim-frommer', 'kenneth-stiegen', 'luca-kaelbly', 'david-herz'];
-  for (let i = 0; i < 16; i++) votes.push({ month: '2026-07', device: 'demo' + i, pick: cands[Math.floor(r() * r() * cands.length)] });
-  for (let i = 0; i < 15; i++) votes.push({ month: '2026-08', device: 'demo' + i, pick: cands[Math.floor(r() * 3.4) % cands.length] });
+  const voters = DEFAULT_PLAYERS.map(p => p.id);
+  voters.slice(0, 16).forEach(v => votes.push({ month: '2026-07', voter: v, pick: cands[Math.floor(r() * r() * cands.length)] }));
+  voters.slice(2, 17).forEach(v => votes.push({ month: '2026-08', voter: v, pick: cands[Math.floor(r() * 3.4) % cands.length] }));
   return { players: DEFAULT_PLAYERS, games, votes, demo: true };
 }
 function isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -86,6 +87,8 @@ function isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).pa
 const Store = {
   get online() { return !!CONFIG.API_URL; },
   data: null,
+  me: null,                                   // { id, pin } des angemeldeten Spielers
+  cred() { return this.me ? { pid: this.me.id, pin: this.me.pin } : {}; },
 
   cacheRead() { try { return JSON.parse(localStorage.getItem('h2ku-data')); } catch { return null; } },
   cacheWrite(d) { try { localStorage.setItem('h2ku-data', JSON.stringify(d)); } catch {} },
@@ -93,7 +96,8 @@ const Store = {
   normalize(d) {
     d = d || {};
     const players = (d.players && d.players.length ? d.players : DEFAULT_PLAYERS).map(p => ({ ...p, active: p.active !== false, guest: !!p.guest }));
-    return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: d.votes || [], demo: !!d.demo };
+    return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: d.votes || [],
+      reactions: d.reactions || [], comments: d.comments || [], months: d.months || [], pins: d.pins || {}, demo: !!d.demo };
   },
 
   /* Sofort aus dem Speicher des Geräts, dann (online) frisch nachladen */
@@ -108,7 +112,7 @@ const Store = {
       return this.data;
     }
     if (cached) this.data = this.normalize(cached);
-    const res = await fetch(CONFIG.API_URL + '?action=all&device=' + encodeURIComponent(deviceId()) + '&t=' + Date.now());
+    const res = await fetch(CONFIG.API_URL + '?action=all&me=' + encodeURIComponent(this.me?.id || '') + '&t=' + Date.now());
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Laden fehlgeschlagen');
     this.data = this.normalize(json.data);
@@ -122,6 +126,14 @@ const Store = {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Fehler');
     return json;
+  },
+
+  async claim(pid, pin) {
+    if (this.online) { await this.post({ action: 'claim', pid, pin }); return true; }
+    const pins = this.data.pins;
+    if (!pins[pid]) { pins[pid] = pin; this.cacheWrite(this.data); return true; }
+    if (pins[pid] !== pin) throw new Error('Falsche PIN');
+    return true;
   },
 
   async login(pw) {
@@ -163,15 +175,60 @@ const Store = {
   async deleteGame(id, pw) {
     if (this.online) { await this.post({ action: 'deleteGame', pw, id }); return this.load(); }
     this.data.games = this.data.games.filter(g => g.id !== id);
+    this.data.comments = this.data.comments.filter(c => c.g !== id);
+    this.data.reactions = this.data.reactions.filter(r => r.g !== id);
     this.cacheWrite(this.data);
     return this.data;
   },
 
   async vote(month, pick) {
-    const device = deviceId();
-    if (this.online) { await this.post({ action: 'vote', month, pick, device }); return this.load(); }
-    this.data.votes = this.data.votes.filter(v => !(v.month === month && v.device === device));
-    this.data.votes.push({ month, pick, device });
+    if (!this.me) throw new Error('Bitte als Spieler anmelden');
+    if (pick === this.me.id) throw new Error('Für dich selbst kannst du nicht stimmen 😉');
+    if (this.online) { await this.post({ action: 'vote', month, pick, ...this.cred() }); return this.load(); }
+    this.data.votes = this.data.votes.filter(v => !(v.month === month && v.voter === this.me.id));
+    this.data.votes.push({ month, pick, voter: this.me.id });
+    this.cacheWrite(this.data);
+    return this.data;
+  },
+
+  /* ---------- Reaktionen, Kommentare, Likes (sofort sichtbar, dann gespeichert) ---------- */
+  toggleReact(g, e) {
+    const r = this.data.reactions.find(x => x.g === g && x.e === e);
+    if (r && r.mine) { r.n--; r.mine = false; if (r.n <= 0) this.data.reactions = this.data.reactions.filter(x => x !== r); }
+    else if (r) { r.n++; r.mine = true; }
+    else this.data.reactions.push({ g, e, n: 1, mine: true });
+  },
+  async react(g, e) {
+    this.toggleReact(g, e); this.cacheWrite(this.data);
+    if (this.online) { try { await this.post({ action: 'react', game: g, emoji: e, ...this.cred() }); } catch (err) { this.toggleReact(g, e); this.cacheWrite(this.data); throw err; } }
+    return this.data;
+  },
+  toggleLike(id) {
+    const c = this.data.comments.find(x => x.id === id); if (!c) return;
+    c.liked = !c.liked; c.likes += c.liked ? 1 : -1;
+  },
+  async like(id) {
+    this.toggleLike(id); this.cacheWrite(this.data);
+    if (this.online) { try { await this.post({ action: 'like', id, ...this.cred() }); } catch (err) { this.toggleLike(id); this.cacheWrite(this.data); throw err; } }
+    return this.data;
+  },
+  async comment(g, pid, text) {
+    let id = 'c-' + uid();
+    if (this.online) id = (await this.post({ action: 'comment', game: g, text, ...this.cred() })).id;
+    this.data.comments.push({ id, g, pid, text, t: new Date().toISOString(), mine: true, likes: 0, liked: false });
+    this.cacheWrite(this.data);
+    return this.data;
+  },
+  async deleteComment(id, pw) {
+    if (this.online) await this.post({ action: 'deleteComment', id, pw: pw || undefined, ...(pw ? {} : this.cred()) });
+    this.data.comments = this.data.comments.filter(x => x.id !== id);
+    this.cacheWrite(this.data);
+    return this.data;
+  },
+  async setFlop(month, flop, note, pw) {
+    if (this.online) { await this.post({ action: 'setFlop', pw, month, flop, note }); return this.load(); }
+    this.data.months = this.data.months.filter(x => x.m !== month);
+    if (flop) this.data.months.push({ m: month, flop, note });
     this.cacheWrite(this.data);
     return this.data;
   },

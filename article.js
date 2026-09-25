@@ -5,7 +5,7 @@
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
 function buildArticle(ctx, variant) {
-  const { month, games, prevGames, player, stats, prevStats, potm } = ctx;
+  const { month, games, prevGames, player, stats, prevStats, potm, flop } = ctx;
   const r = rng(month + ':' + variant);
   const one = arr => arr[Math.floor(r() * arr.length)];
   const [y, m] = month.split('-').map(Number);
@@ -138,6 +138,37 @@ function buildArticle(ctx, variant) {
   if (prevGames.length && newbies.length && newbies.length <= 3) pR += ' ' + `Nach torlosem Vormonat wieder in der Torschützenliste: ${newbies.map(nm).join(', ').replace(/, ([^,]*)$/, ' und $1')}.`;
   if (pR.trim()) paras.push({ h: 'Rekorde & Serien', t: pR.trim() });
 
+  // ---------- Schönste Tore ----------
+  const bests = [];
+  games.forEach(g => g.goals.forEach(x => { if (x.best) bests.push({ ...x, date: g.date }); }));
+  if (bests.length) {
+    const pick = bests.slice(-2);
+    const txt = pick.map(b => {
+      const who = nm(b.s) + (b.a ? ` nach Vorlage von ${nm(b.a)}` : '');
+      const note = b.note ? ` („${b.note}“)` : '';
+      return one([`Am ${fmtDate(b.date)} erzielte ${who} das Tor des Spiels${note}.`, `Das Tor des Spiels am ${fmtDate(b.date)}: ${who}${note}.`]);
+    }).join(' ');
+    paras.push({ h: 'Die schönsten Tore', t: txt + (bests.length > 2 ? ` Insgesamt wurden im ${mName} ${bests.length} Tore des Spiels gekürt.` : '') });
+  }
+
+  // ---------- Serie ----------
+  let run = null;
+  Object.keys(stats).forEach(id => {
+    let cur = 0, best = 0;
+    games.forEach(g => { cur = g.goals.some(x => x.s === id) ? cur + 1 : 0; best = Math.max(best, cur); });
+    if (best >= 3 && (!run || best > run.n)) run = { id, n: best };
+  });
+  if (run) paras.push({ h: null, t: one([
+    `Heißester Lauf des Monats: ${nm(run.id)} traf in ${run.n} Spielen in Folge. 🔥`,
+    `Eine Serie für die Chronik legte ${nm(run.id)} hin – ${run.n} Spiele am Stück mit mindestens einem Tor.`
+  ]) });
+
+  // ---------- Flop ----------
+  if (flop) paras.push({ h: 'Der Flop des Monats', t: one([
+    `Weniger rund lief es für ${nm(flop.id)}: Die Redaktion kürt ihn zum Flop des Monats${flop.note ? ` – Begründung: „${flop.note}“` : ''}. Kopf hoch, der nächste Monat kommt bestimmt!`,
+    `Und dann gibt es noch ${nm(flop.id)}, unseren Flop des Monats${flop.note ? ` („${flop.note}“)` : ''}. Wir sind sicher: Das Comeback folgt.`
+  ]) });
+
   // ---------- Abschluss ----------
   paras.push({ h: null, t: potm
     ? one([
@@ -155,7 +186,7 @@ function buildArticle(ctx, variant) {
     headline, deck, lead, paras, table,
     photo: potm ? potm.id : S1.id,
     caption: potm ? `Spieler des Monats: ${nm(potm.id)}` : `Torjäger des Monats: ${nm(S1.id)} (${tore(S1.g)})`,
-    potm,
+    potm, flop,
     dateline: new Date(y, m, 0).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }),
     issue: `Ausgabe ${mName} ${y}`
   };
