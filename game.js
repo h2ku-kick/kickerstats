@@ -31,7 +31,7 @@
     wrap.innerHTML = `<div class="egg-menu">
         <button class="egg-x" aria-label="Schließen">✕</button>
         <div class="egg-title">Elfmeter-Challenge</div>
-        <p>Mal die Flugbahn mit dem Finger – ein Bogen beim Wischen gibt Effet.</p>
+        <p>Wisch vom Ball aus – der Ball fliegt genau deine Bahn. Ein Bogen gibt Effet, schnell gewischt schießt härter.</p>
         <button class="egg-mode" data-mode="keeper"><b>Gegen den Torwart</b><span>3 Tore mit möglichst wenigen Schüssen</span><em>Rekord: ${bestK ?? '–'}${bestK ? ' Schüsse' : ''}</em></button>
         <button class="egg-mode" data-mode="targets"><b>Zielschießen auf Zeit</b><span>3 Ziele, die Zeit läuft ab dem ersten Schuss</span><em>Rekord: ${bestT ? fmtT(bestT) : '–'}</em></button>
       </div>`;
@@ -47,7 +47,7 @@
     const K = mode === 'keeper';
     wrap.innerHTML = `<canvas></canvas>
       <div class="egg-hud"><div id="egg-a">${K ? '<b>0</b>/3 Tore' : 'Ziel <b>1</b>/3'}</div><div id="egg-b">${K ? '0 Schüsse' : '0,0 s'}</div><button class="egg-x" aria-label="Schließen">✕</button></div>
-      <div class="egg-msg stay hint" id="egg-msg">${K ? 'Mal die Flugbahn Richtung Tor!' : 'Triff die Zielscheibe – die Zeit startet mit dem ersten Schuss'}</div>
+      <div class="egg-msg stay hint" id="egg-msg">${K ? 'Vom Ball aus die Flugbahn ins Tor malen' : 'Triff die Zielscheibe – die Zeit startet mit dem ersten Schuss'}</div>
       <div class="egg-foot">${K ? `Im Tor: <b>${esc(keeper.name)}</b> · ` : ''}Rekord: <b id="egg-best">${K ? (ls.get('h2ku-egg-best', null) ?? '–') : (ls.get('h2ku-egg-best-time', null) ? fmtT(ls.get('h2ku-egg-best-time', null)) : '–')}</b></div>`;
     const cv = wrap.querySelector('canvas'), ctx = cv.getContext('2d');
     const img = new Image(); img.src = face(keeper.id);
@@ -64,7 +64,7 @@
       if (!G.target && !K) newTarget();
       resetBall();
     }
-    function resetBall() { G.ball = { x: W / 2, y: H * 0.78, r: 22, fly: null }; G.state = 'aim'; G.dive = 0; G.diveDir = 0; }
+    function resetBall() { G.ball = { x: W / 2, y: H * 0.78, r: 22, fly: null }; G.state = 'aim'; G.dive = 0; G.diveDir = 0; G.trail = null; G.trailFade = 0; }
     function newTarget() {
       const sizes = [0.13, 0.095, 0.065];                                   // groß, mittel, klein (Anteil der Torbreite)
       const r = goal.w * sizes[Math.floor(Math.random() * sizes.length)];
@@ -72,43 +72,61 @@
     }
     window.addEventListener('resize', resize); resize();
 
-    // ---------- Eingabe: Flugbahn malen ----------
+    // ---------- Eingabe wie Score Hero: Bahn vom Ball aus malen – der Ball fliegt genau diese Bahn ----------
     let path = null;
-    cv.addEventListener('pointerdown', e => { if (G.state !== 'aim') return; path = [{ x: e.clientX, y: e.clientY }]; try { cv.setPointerCapture(e.pointerId); } catch {} });
-    cv.addEventListener('pointermove', e => { if (path) path.push({ x: e.clientX, y: e.clientY }); });
-    cv.addEventListener('pointerup', e => {
-      if (!path || G.state !== 'aim') return;
-      path.push({ x: e.clientX, y: e.clientY });
-      const s = path[0], en = path[path.length - 1], dx = en.x - s.x, dy = en.y - s.y;
-      if (dy > -30) { path = null; return msg('Nach oben wischen!'); }
-      // Bogen: größte seitliche Abweichung vom geraden Weg (Vorzeichen = Seite)
-      const L = Math.hypot(dx, dy); let curve = 0;
-      path.forEach(p => { const d = ((p.x - s.x) * dy - (p.y - s.y) * dx) / L; if (Math.abs(d) > Math.abs(curve)) curve = d; });
-      // Anfangsrichtung – danach rät der Torwart
-      const early = path[Math.max(1, Math.floor(path.length * 0.35))] || en;
-      const ex = early.x - s.x, ey = early.y - s.y;
-      path = null;
-      const len = Math.min(1.35, -dy / (H * 0.45));
-      const tx = G.ball.x + dx * 1.7, ty = goal.y + goal.h - len * goal.h * 1.05;
-      const guessX = ey < -5 ? G.ball.x + (ex / -ey) * -dy * 1.7 : tx;
-      shoot(tx, ty, Math.max(-1, Math.min(1, curve / 60)), guessX);
+    const pt = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() }; };
+    cv.addEventListener('pointerdown', e => {
+      if (G.state !== 'aim') return;
+      const p = pt(e);
+      if (Math.hypot(p.x - G.ball.x, p.y - G.ball.y) > 90) { msg('Vom Ball aus wischen!'); return; }
+      path = [p]; G.trail = path; try { cv.setPointerCapture(e.pointerId); } catch {}
     });
+    cv.addEventListener('pointermove', e => { if (!path) return; const p = pt(e), l = path[path.length - 1]; if (Math.hypot(p.x - l.x, p.y - l.y) > 3) path.push(p); });
+    const endSwipe = e => {
+      if (!path || G.state !== 'aim') return;
+      path.push(pt(e));
+      const pts = path; path = null;
+      G.trailFade = performance.now();
+      const s0 = pts[0], en = pts[pts.length - 1];
+      if (s0.y - en.y < 40) return msg('Nach oben wischen!');
+      // Bahn: Start am Ball, dann genau der Fingerweg. Endet sie vor dem Tor, wird sie in der letzten Richtung bis vor das Tor verlängert.
+      let way = [{ x: G.ball.x, y: G.ball.y }, ...pts.slice(1).map(p => ({ x: p.x, y: p.y }))];
+      const low = goal.y + goal.h - 10;
+      if (en.y > low) {
+        const a = pts[Math.max(0, pts.length - 4)], dx = en.x - a.x, dy = en.y - a.y;
+        if (dy < -1) { const k = (low - en.y) / dy; way.push({ x: en.x + dx * k, y: low }); }
+      }
+      way = resample(way, 24);
+      const tgt = way[way.length - 1];
+      // Anfangsrichtung (erstes Drittel) – danach rät der Torwart; ein Bogen trickst ihn aus
+      const e1 = way[Math.floor(way.length / 3)], ddx = e1.x - G.ball.x, ddy = e1.y - G.ball.y;
+      const guessX = ddy < -1 ? G.ball.x + ddx * ((low - G.ball.y) / ddy) : tgt.x;
+      // Schnell gewischt = harter Schuss
+      const ms = Math.max(60, en.t - s0.t);
+      shoot(way, tgt.x, tgt.y, guessX, Math.max(360, Math.min(820, ms * 1.4)));
+    };
+    cv.addEventListener('pointerup', endSwipe);
+    cv.addEventListener('pointercancel', () => { path = null; });
+    function resample(pts, n) {
+      const d = [0]; for (let i = 1; i < pts.length; i++) d.push(d[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+      const L = d[d.length - 1] || 1, out = [];
+      for (let k = 0; k <= n; k++) { const t = L * k / n; let i = 1; while (i < d.length - 1 && d[i] < t) i++; const f = (t - d[i - 1]) / ((d[i] - d[i - 1]) || 1); out.push({ x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f }); }
+      return out;
+    }
 
-    function shoot(tx, ty, bend, guessX) {
+    function shoot(way, tx, ty, guessX, dur) {
       G.state = 'fly'; G.shots++;
       if (!K && G.tStart === null) G.tStart = performance.now();
       if (K) $('#egg-b').textContent = G.shots + (G.shots === 1 ? ' Schuss' : ' Schüsse');
-      const sx = G.ball.x, sy = G.ball.y, mx = (sx + tx) / 2, my = (sy + ty) / 2, nx = -(ty - sy), ny = tx - sx, nl = Math.hypot(nx, ny) || 1;
-      const amt = bend * Math.hypot(tx - sx, ty - sy) * 0.45;
-      G.ball.fly = { sx, sy, tx, ty, cx: mx + nx / nl * amt, cy: my + ny / nl * amt - 20, start: performance.now(), dur: 560 };
+      G.ball.fly = { way, tx, ty, start: performance.now(), dur };
       if (K) {
         G.kxStart = G.kx || goal.x + goal.w / 2; G.diveDir = 0;
-        // Torwart rät nach der Anfangsrichtung – mit steigendem Tempo besser
         let guess = guessX;
         if (Math.random() < Math.max(0.2, 0.42 - G.speed * 0.06)) guess = goal.x + goal.w - (guess - goal.x);   // falsche Ecke
         const err = (1.3 - Math.min(0.7, G.speed * 0.15)) * (Math.random() - 0.5) * goal.w * 0.5;
         G.diveTo = Math.max(goal.x + 20, Math.min(goal.x + goal.w - 20, guess + err));
-        G.diveDelay = 90 + Math.random() * 140;
+        // harte Schüsse lassen weniger Reaktionszeit
+        G.diveDelay = (90 + Math.random() * 140) * Math.min(1.2, dur / 560);
       }
     }
 
@@ -280,11 +298,23 @@
       // Ball auf gekrümmter Bahn
       const b = G.ball;
       if (b.fly) {
-        const f = b.fly, p = Math.min(1, (now - f.start) / f.dur), e = 1 - Math.pow(1 - p, 2), u = 1 - e;
-        b.x = u * u * f.sx + 2 * u * e * f.cx + e * e * f.tx;
-        b.y = u * u * f.sy + 2 * u * e * f.cy + e * e * f.ty;
+        const f = b.fly, p = Math.min(1, (now - f.start) / f.dur), e = 1 - Math.pow(1 - p, 1.6);
+        const q = e * (f.way.length - 1), i = Math.min(f.way.length - 2, Math.floor(q)), fr = q - i;
+        b.x = f.way[i].x + (f.way[i + 1].x - f.way[i].x) * fr;
+        b.y = f.way[i].y + (f.way[i + 1].y - f.way[i].y) * fr;
         b.r = 22 - 10 * e;
         if (p >= 1 && G.state === 'fly') { G.state = 'result'; result(f.tx, f.ty); }
+      }
+      // Leuchtspur der gemalten Bahn
+      if (G.trail && G.trail.length > 1) {
+        const age = G.trailFade ? (now - G.trailFade) / 600 : 0;
+        if (age < 1) {
+          ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.strokeStyle = `rgba(255,255,255,${0.55 * (1 - age)})`; ctx.lineWidth = 7;
+          ctx.beginPath(); G.trail.forEach((p, k) => k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+          ctx.strokeStyle = `rgba(217,173,85,${0.9 * (1 - age)})`; ctx.lineWidth = 3; ctx.stroke();
+          ctx.restore();
+        } else G.trail = null;
       }
       drawBall(b.x, b.y, b.r);
       // Zeit (Zielschießen)

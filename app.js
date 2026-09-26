@@ -590,10 +590,11 @@ function monthChart(id) {
 
 /* ---------- SPIELE ---------- */
 function viewGames() {
-  if (!D.games.length) return demoPill() + `<div class="card"><div class="empty" style="text-align:center;padding:30px 0">Noch keine Spiele.</div></div>`;
+  const live = typeof liveSection === 'function' ? liveSection() : '';
+  if (!D.games.length) return demoPill() + live + `<div class="card"><div class="empty" style="text-align:center;padding:30px 0">Noch keine Spiele.</div></div>`;
   const byMonth = {};
   D.games.slice().reverse().forEach(g => (byMonth[g.date.slice(0, 7)] ||= []).push(g));
-  return demoPill() + Object.entries(byMonth).map(([m, gs]) => `<div class="sec-title">${monthLabel(m)} · ${gs.length} Spiele · ${gs.reduce((s, g) => s + g.goals.length, 0)} Tore</div>` + gs.map(gameCard).join('')).join('');
+  return demoPill() + live + Object.entries(byMonth).map(([m, gs]) => `<div class="sec-title">${monthLabel(m)} · ${gs.length} Spiele · ${gs.reduce((s, g) => s + g.goals.length, 0)} Tore</div>` + gs.map(gameCard).join('')).join('');
 }
 function gameCard(g) {
   const d = new Date(g.date + 'T12:00');

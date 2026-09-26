@@ -98,7 +98,8 @@ const Store = {
     const players = (d.players && d.players.length ? d.players : DEFAULT_PLAYERS).map(p => ({ ...p, active: p.active !== false, guest: !!p.guest }));
     return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: (d.votes || []).map(v => ({ ...v, type: v.type === 'flop' ? 'flop' : 'potm' })),
       reactions: d.reactions || [], comments: d.comments || [], months: d.months || [], pins: d.pins || {}, demo: !!d.demo,
-      ratings: { agg: (d.ratings && d.ratings.agg) || {}, mine: (d.ratings && d.ratings.mine) || {} } };
+      ratings: { agg: (d.ratings && d.ratings.agg) || {}, mine: (d.ratings && d.ratings.mine) || {} },
+      drafts: (d.drafts || []).slice().sort((a, b) => b.date.localeCompare(a.date)) };
   },
 
   /* Sofort aus dem Speicher des Geräts, dann (online) frisch nachladen */
@@ -237,6 +238,25 @@ const Store = {
     r.mine[target] = { ...vals };
     this.cacheWrite(this.data);
     return this.data;
+  },
+
+  /* ---------- Live-Spiele (warten auf Freigabe) ---------- */
+  async submitDraft(game) {
+    if (!this.me) throw new Error('Bitte als Spieler anmelden');
+    if (this.online) { await this.post({ action: 'submitDraft', game, ...this.cred() }); return this.load(); }
+    this.data.drafts.unshift({ id: 'live-' + uid(), date: game.date, by: this.me.id, t: new Date().toISOString(), game });
+    this.cacheWrite(this.data); return this.data;
+  },
+  async deleteDraft(id, pw) {
+    if (this.online) { await this.post({ action: 'deleteDraft', id, ...(pw ? { pw } : this.cred()) }); return this.load(); }
+    this.data.drafts = this.data.drafts.filter(x => x.id !== id);
+    this.cacheWrite(this.data); return this.data;
+  },
+  async approveDraft(id, pw) {
+    if (this.online) { await this.post({ action: 'approveDraft', id, pw }); return this.load(); }
+    const d = this.data.drafts.find(x => x.id === id); if (!d) throw new Error('Live-Spiel nicht gefunden');
+    this.data.drafts = this.data.drafts.filter(x => x.id !== id);
+    return this.saveGame({ ...d.game, id }, pw);
   },
 
   async setFlop(month, flop, note, pw) {
