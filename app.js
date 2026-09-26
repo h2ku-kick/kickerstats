@@ -108,11 +108,11 @@ function ranked(st, key) {
 }
 /* Serien: Spiele in Folge mit Tor (bzw. mit Scorerpunkt). Kein Training = Serie reißt. */
 let _memo = { key: '', streak: {}, fifa: {} };
-/* Teams: Alt gegen Jung. Spiele ohne Teams (z. B. Altdaten) zählen für alle als "dabei". */
+/* Teams: Alt gegen Jung. Bei Spielen ohne Teams weiß man nur, wer ein Tor oder eine Vorlage hatte – nur die zählen als "dabei". */
 const TEAMS = { alt: { name: 'Team Alt', short: 'Alt', ic: '' }, jung: { name: 'Team Jung', short: 'Jung', ic: '' } };
 const hasTeams = g => !!(g.teams && ((g.teams.alt || []).length || (g.teams.jung || []).length));
 const teamOf = (g, id) => !hasTeams(g) ? null : g.teams.alt.includes(id) ? 'alt' : g.teams.jung.includes(id) ? 'jung' : null;
-const played = (g, id) => !hasTeams(g) || !!teamOf(g, id);
+const played = (g, id) => hasTeams(g) ? !!teamOf(g, id) : g.goals.some(x => x.s === id || x.a === id);
 const winnerOf = g => g.result?.winner || null;
 function liveScore(g) { const sc = { alt: 0, jung: 0 }; g.goals.forEach(x => { const t = teamOf(g, x.s); if (t) sc[t]++; }); return sc; }
 function scoreOf(g) { return g.result ? { alt: g.result.alt, jung: g.result.jung } : hasTeams(g) ? liveScore(g) : null; }
