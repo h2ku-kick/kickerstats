@@ -287,6 +287,11 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .tile .cnt span { font: 700 12px/1 var(--display); padding: 3px 6px; border-radius: 999px; }
 .tile .cnt .g { background: var(--red); }
 .tile .cnt .a { background: var(--sky); color: #001634; }
+.tile .cnt .c { background: #fff; color: #001634; }
+.lnk { color: var(--sky); font: inherit; text-decoration: underline; padding: 0; }
+.rank .v small.kp { display: block; font: 500 10px var(--font); color: var(--muted); text-align: right; }
+.gk-line { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+.gk-line b { color: #fff; }
 .tile.add { border: 2px dashed rgba(255,255,255,.18); background: transparent; }
 .tile.add .plus-c { width: 58px; max-width: 100%; aspect-ratio: 1; margin: 0 auto 4px; border-radius: 50%; display: grid; place-items: center; font: 700 30px/1 var(--display); color: var(--muted); background: rgba(255,255,255,.06); }
 .tile.dim { opacity: .25; pointer-events: none; }

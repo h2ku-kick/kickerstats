@@ -91,11 +91,12 @@ function voteWindow(m) {
 function gamesIn(scope, m) { return scope === 'all' ? D.games : D.games.filter(g => g.date.startsWith(m)); }
 function computeStats(games) {
   const st = {};
-  const get = id => st[id] || (st[id] = { id, g: 0, a: 0, gp: 0 });
+  const get = id => st[id] || (st[id] = { id, g: 0, a: 0, gp: 0, c: 0, k: 0 });
   games.forEach(g => {
     const inGame = new Set();
     g.goals.forEach(x => { get(x.s).g++; inGame.add(x.s); if (x.a) { get(x.a).a++; inGame.add(x.a); } });
     inGame.forEach(id => get(id).gp++);
+    Object.entries(g.conceded || {}).forEach(([id, n]) => { const s = get(id); s.c += n; s.k++; });   // Gegentore im Tor
   });
   return st;
 }
@@ -262,6 +263,7 @@ function cardBack(id) {
     <div class="fc-back">
       ${li('Tore gesamt', tot.g)}${li('Assists gesamt', tot.a)}${li('Spiele dabei', f.games)}
       ${r.n ? li('Bilanz S-U-N', `${r.w}-${r.d}-${r.l} · ${r.pct} %`) : ''}
+      ${tot.k ? li('Gegentore', `${tot.c} in ${tot.k} Sp.`) : ''}
       ${li('Rekord-Serie', sk.best + ' Spiele')}${li('Tore des Spiels', tds)}
       ${fav ? li('Top-Vorlagengeber', esc(short(fav[0])) + ' (' + fav[1] + ')') : ''}
       ${li('Team-Werte', src)}
@@ -360,6 +362,7 @@ function viewHome() {
   if (!games.length) return html + `<div class="card"><div class="empty" style="text-align:center;padding:30px 0">Noch keine Spiele ${S.scope === 'month' ? 'in diesem Monat' : ''} eingetragen.<br>Tore werden über <b>Eintragen</b> erfasst.</div></div>`;
   html += leaderCard('g', '', 'Torjäger', st, 'Tore', 'var(--red)');
   html += leaderCard('a', '', 'Vorlagenkönige', st, 'Assists', 'var(--sky)');
+  html += keeperCard(st);
   html += duelCard(games);
   html += highlights(games, st);
   html += installHint();
@@ -379,6 +382,14 @@ function leaderCard(key, ic, title, st, unit, color) {
     <div class="podium">${pod(top[1], 'p2')}${pod(top[0], 'p1')}${pod(top[2], 'p3')}</div>
     ${shown.length ? `<ul class="rank" style="--bc:${color}">${shown.map(e => `<li data-act="profile" data-id="${e.id}"><span class="n">${e.rank}</span>${imgTag(face(e.id), e.id)}<div class="who"><b>${esc(player(e.id).name)}${fire(e.id)}</b><div class="bar"><i data-w="${Math.round(e.v / max * 100)}"></i></div></div><span class="v">${e.v}</span></li>`).join('')}</ul>` : ''}
     ${rest.length > 5 ? `<button class="more-btn" data-act="more" data-v="${key}">${open ? 'Weniger anzeigen ▲' : `Alle ${list.length} anzeigen ▼`}</button>` : ''}</div>`;
+}
+function keeperCard(st) {
+  const list = ranked(st, 'c');
+  if (!list.length) return '';
+  const open = S.showAll.c, shown = open ? list : list.slice(0, 5), max = list[0].v;
+  return `<div class="card"><div class="card-h"><h2>Meiste Gegentore</h2><span class="meta">im Tor</span></div>
+    <ul class="rank" style="--bc:var(--faint)">${shown.map(e => `<li data-act="profile" data-id="${e.id}"><span class="n">${e.rank}</span>${imgTag(face(e.id), e.id)}<div class="who"><b>${esc(player(e.id).name)}</b><div class="bar"><i data-w="${Math.round(e.v / max * 100)}"></i></div></div><span class="v">${e.v}<small class="kp">${e.s.k} Sp · Ø ${(e.v / e.s.k).toFixed(1).replace('.', ',')}</small></span></li>`).join('')}</ul>
+    ${list.length > 5 ? `<button class="more-btn" data-act="more" data-v="c">${open ? 'Weniger anzeigen ▲' : `Alle ${list.length} anzeigen ▼`}</button>` : ''}</div>`;
 }
 function duelCard(games) {
   const tg = games.filter(winnerOf);
@@ -509,6 +520,7 @@ function openProfile(id, dir) {
         return `<div class="card rec-card"><div class="card-h"><h2>Bilanz</h2><span class="meta">${r.n} Spiele mit Team</span></div>
           <div class="streaks"><div class="${r.w > r.l ? 'hot' : ''}"><b>${r.w}</b><span>Siege</span></div><div><b>${r.d}</b><span>Unentschieden</span></div><div><b>${r.l}</b><span>Niederlagen</span></div></div>
           <div class="rec-line"><b>${r.pct} %</b> Siegquote · meist ${TEAMS[main].name} (${r[main]}×)</div></div>`; })()}
+      ${s.k ? `<div class="card"><div class="card-h"><h2>Im Tor</h2><span class="meta">${rk('c').replace('im Team', 'meiste Gegentore')}</span></div><div class="streaks" style="margin:0"><div><b>${s.c}</b><span>Gegentore</span></div><div><b>${s.k}</b><span>Spiele im Tor</span></div><div><b>${(s.c / s.k).toFixed(1).replace('.', ',')}</b><span>pro Spiel</span></div></div></div>` : ''}
       <div class="card"><div class="card-h"><h2>Formkurve</h2><span class="meta">letzte ${Math.min(5, D.games.length)} Spiele</span></div>${formChart(id)}</div>
       <div class="card"><div class="card-h"><h2>Verlauf</h2><span class="meta">pro Monat</span></div>${monthChart(id)}</div>
       <div class="card"><div class="partners"><div><h4>Vorlagen von</h4>${plist(from)}</div><div><h4>Legt auf für</h4>${plist(to)}</div></div></div>
@@ -633,6 +645,7 @@ function gameCard(g) {
       <span class="cnt">${g.goals.length}</span><span class="chev">▾</span></div>
     <div class="goals">
       ${hasTeams(g) ? `<div class="teams-view">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].name}${winnerOf(g) === t ? ' <span class="winner-tag">Sieger</span>' : ''}</small><div>${g.teams[t].map(id => `<span data-act="profile" data-id="${id}" title="${esc(player(id).name)}">${imgTag(face(id), id)}</span>`).join('') || '<em>–</em>'}</div></div>`).join('')}</div>${winnerOf(g) === 'draw' ? '<div class="empty" style="text-align:center">Unentschieden</div>' : ''}` : ''}
+      ${Object.keys(g.conceded || {}).length ? `<div class="gk-line">Im Tor: ${Object.entries(g.conceded).map(([id, n]) => `<span data-act="profile" data-id="${id}">${esc(short(id))} <b>${n}</b></span>`).join(' · ')}</div>` : ''}
       ${best ? `<div class="best-box" data-act="profile" data-id="${best.s}">${imgTag(face(best.s), best.s)}<div><small>${I.starOn} Tor des Spiels</small><b>${esc(player(best.s).name)}</b>${best.a ? `<span class="as"> ← ${esc(player(best.a).name)}</span>` : ''}${best.note ? `<p>„${esc(best.note)}“</p>` : ''}</div></div>` : ''}
       ${g.goals.map((x, i) => `<div class="gl ${x.best ? 'is-best' : ''} ${teamOf(g, x.s) || ''}"><span class="i">${x.best ? I.starOn : i + 1}</span>${imgTag(face(x.s), x.s)}<div><b>${esc(player(x.s).name)}</b> ${x.a ? `<span class="as">← ${esc(player(x.a).name)}</span>` : '<span class="as">ohne Assist</span>'}</div></div>`).join('')}
       <div class="reacts">${EMOJIS.map(e => { const r = reacts.find(x => x.e === e); return `<button class="re ${r?.mine ? 'on' : ''}" data-act="react" data-g="${g.id}" data-e="${e}">${e}<span>${r?.n || ''}</span></button>`; }).join('')}</div>
@@ -744,12 +757,11 @@ function viewAdmin() {
     <input class="pw" id="pw" type="password" placeholder="Passwort" autocomplete="current-password" enterkeyhint="go">
     <button class="btn" data-act="login">Entsperren</button></div>`;
   const d = draft(), teams = !d.noTeams, step = d.step;
-  const sc = teams ? liveScore(d) : null;
-  const win = autoWinner(d);
+  const sc = teams ? draftScore(d) : null;
   let h = `<div class="entry-top"><input type="date" value="${d.date}" max="${isoDate(TODAY)}" data-input="date">
       ${teams ? `<span class="score-pill sb"><small>Alt</small>${sc.alt}:${sc.jung}<small>Jung</small></span>` : `<span class="score-pill">${I.ball} ${d.goals.length}</span>`}</div>
     ${d.id ? `<div class="demo-pill" style="background:var(--sky)">${I.edit} Du bearbeitest das Spiel vom ${new Date(d.date + 'T12:00').toLocaleDateString('de-DE')}</div>` : ''}
-    <div class="steps">${[['teams', '① Teams', teams ? `${d.teams.alt.length} : ${d.teams.jung.length}` : 'ohne'], ['goals', '② Tore', d.goals.length + ''], ['result', '③ Ergebnis', teams ? (win ? (win === 'draw' ? 'Remis' : TEAMS[win].short) : '–') : '–']]
+    <div class="steps">${[['teams', '① Teams', teams ? `${d.teams.alt.length} : ${d.teams.jung.length}` : 'ohne'], ['goals', '② Tore', d.goals.length + ''], ['result', '③ Gegentore', teams ? concSum(d) + '/' + (draftScore(d).alt + draftScore(d).jung) : '–']]
       .map(([k, l, v]) => `<button class="${step === k ? 'on' : ''}" data-act="step" data-v="${k}" ${!teams && k === 'result' ? 'disabled' : ''}><b>${l}</b><span>${v}</span></button>`).join('')}</div>`;
   if (step === 'teams') h += stepTeams(d);
   else if (step === 'goals') h += stepGoals(d);
@@ -760,8 +772,39 @@ function viewAdmin() {
 function autoWinner(d) {
   if (d.noTeams) return null;
   if (d.winner) return d.winner;
+  if (d.res && d.resLive) { const l = liveScore(d); if (l.alt === d.resLive.alt && l.jung === d.resLive.jung) return d.res.winner; }
+  const sc = draftScore(d);
+  return sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw';
+}
+// Beim Bearbeiten alter Spiele bleibt das gespeicherte Ergebnis, solange die Tore nicht geändert wurden
+function draftScore(d) {
   const sc = liveScore(d);
-  return !d.goals.length ? null : sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw';
+  return d.res && d.resLive && sc.alt === d.resLive.alt && sc.jung === d.resLive.jung ? { alt: d.res.alt, jung: d.res.jung } : sc;
+}
+const concSum = d => Object.values(d.conceded || {}).reduce((s, n) => s + n, 0);
+/* Gegentore verteilen: Wer stand im Tor? Erstes Antippen bekommt alle offenen Gegentore,
+   jedes weitere Antippen verschiebt eins vom Torwart mit den meisten zum angetippten. */
+function concTap(d, t, id) {
+  const c = d.conceded ||= {}, total = draftScore(d)[t === 'alt' ? 'jung' : 'alt'];
+  const mine = d.teams[t].filter(x => c[x]);
+  const used = mine.reduce((s, x) => s + c[x], 0);
+  if (!total) return 'Keine Gegentore für ' + TEAMS[t].name;
+  if (used < total) c[id] = (c[id] || 0) + (mine.length ? 1 : total - used);
+  else {
+    const from = mine.filter(x => x !== id).sort((a, b) => c[b] - c[a])[0];
+    if (!from) return 'Alle Gegentore sind schon bei ' + short(id);
+    c[from]--; if (!c[from]) delete c[from]; c[id] = (c[id] || 0) + 1;
+  }
+  return null;
+}
+function concReset(d, t) { const c = d.conceded || {}; d.teams[t].forEach(x => delete c[x]); }
+function concHtml(d, src) {
+  const sc = draftScore(d), c = d.conceded || {};
+  return ['alt', 'jung'].map(t => {
+    const total = sc[t === 'alt' ? 'jung' : 'alt'], used = d.teams[t].reduce((s, x) => s + (c[x] || 0), 0);
+    return `<div class="team-sec ${t}"><h3>${TEAMS[t].name} <span>${used}/${total} Gegentore${used ? ` · <button class="lnk" data-act="gt-reset" data-t="${t}" data-src="${src}">zurücksetzen</button>` : ''}</span></h3>
+      ${total ? `<div class="tgrid">${d.teams[t].map(id => `<div class="tile ${c[id] ? '' : 'out'}" data-act="gt-tap" data-t="${t}" data-id="${id}" data-src="${src}">${imgTag(face(id), id)}<b>${esc(short(id))}</b><div class="cnt">${c[id] ? `<span class="c">${c[id]}</span>` : ''}</div></div>`).join('')}</div>` : '<div class="empty">Kein Gegentor</div>'}</div>`;
+  }).join('');
 }
 const tileHtml = (id, extra = '', cnt = null, act = 'tile') => `<div class="tile ${extra}" data-act="${act}" data-id="${id}" id="t-${id}">${imgTag(face(id), id)}<b>${esc(short(id))}</b>
   <div class="cnt">${cnt?.g ? `<span class="g">${cnt.g}</span>` : ''}${cnt?.a ? `<span class="a">${cnt.a}</span>` : ''}</div></div>`;
@@ -797,19 +840,16 @@ function stepGoals(d) {
         ${d.goals.some(x => x.best) ? `<div class="best-note"><label>${I.starOn} Tor des Spiels – Kommentar (optional)</label><input data-input="bestnote" maxlength="120" placeholder="z. B. Fallrückzieher aus 20 Metern" value="${esc(d.goals.find(x => x.best).note || '')}"></div>`
           : ''}` : `<div class="empty">Noch keine Tore. Tippe oben auf den Torschützen.</div>`}
     </div></div>`;
-  if (teams) h += `<button class="btn" data-act="step" data-v="result" style="margin-bottom:14px">Weiter zum Ergebnis →</button>`;
+  if (teams) h += `<button class="btn" data-act="step" data-v="result" style="margin-bottom:14px">Weiter zu den Gegentoren →</button>`;
   return h;
 }
 function stepResult(d) {
-  const sc = liveScore(d), win = autoWinner(d);
-  const opt = (v, l) => `<button class="res-btn ${v} ${win === v ? 'on' : ''}" data-act="winner" data-v="${v}">${l}</button>`;
-  return `<div class="card">
-      <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${d.teams.alt.length} Spieler</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${d.teams.jung.length} Spieler</small></div></div>
-      <div class="sec-title" style="margin:14px 0 8px;text-align:center">Wer hat gewonnen?</div>
-      <div class="res-row">${opt('alt', 'Alt')}${opt('draw', 'Remis')}${opt('jung', 'Jung')}</div>
-      <div class="empty" style="text-align:center;margin-top:8px">${d.winner ? 'Von dir gewählt' : win ? 'Vorschlag aus den Toren' : 'Sieger antippen'}</div>
-    </div>
-    <div class="teams-view" style="margin-bottom:14px">${['alt', 'jung'].map(t => `<div class="tv ${t}"><small>${TEAMS[t].name}${win === t ? ' <span class="winner-tag">Sieger</span>' : ''}</small><div>${d.teams[t].map(id => imgTag(face(id), id)).join('')}</div></div>`).join('')}</div>`;
+  const sc = draftScore(d), win = autoWinner(d);
+  return `<div class="entry"><div class="card">
+      <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${win === 'alt' ? 'Sieger' : '&nbsp;'}</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${win === 'jung' ? 'Sieger' : '&nbsp;'}</small></div></div>
+      ${win === 'draw' ? '<div class="empty" style="text-align:center;margin-top:6px">Unentschieden</div>' : ''}</div>
+    <div class="prompt"><span class="step">3</span><span style="flex:1">Wer stand im Tor? <span style="color:var(--muted);font-weight:400">Antippen · nochmal tippen verschiebt ein Gegentor</span></span></div>
+    ${concHtml(d, 'admin')}<div style="height:14px"></div></div>`;
 }
 function adminLists() {
   let h = '';
@@ -846,7 +886,11 @@ function draft() {
   if (d.winner === undefined) d.winner = null;
   return d;
 }
-function draftReady(d) { return d.noTeams ? d.goals.length > 0 : d.teams.alt.length && d.teams.jung.length && (d.goals.length || d.winner); }
+function draftReady(d) { return d.noTeams ? d.goals.length > 0 : d.teams.alt.length && d.teams.jung.length; }
+function cleanConceded(d) {
+  const out = {}; Object.entries(d.conceded || {}).forEach(([id, n]) => { if (n > 0 && (d.teams.alt.includes(id) || d.teams.jung.includes(id))) out[id] = n; });
+  return out;
+}
 function saveDraft() { ls.set('h2ku-draft', S.draft); }
 function renderSaveBar() {
   const d = draft();
@@ -1124,6 +1168,17 @@ const actions = {
   'teams-clear': () => { const d = draft(); if (d.goals.length) return toast('Es gibt schon Tore – erst verwerfen'); d.teams = { alt: [], jung: [] }; saveDraft(); render(); },
   'no-teams': () => { const d = draft(); d.noTeams = true; d.winner = null; saveDraft(); render(); },
   'with-teams': () => { const d = draft(); d.noTeams = false; saveDraft(); render(); },
+  'gt-tap': el => {
+    const d = el.dataset.src === 'live' ? liveState() : draft();
+    const m = concTap(d, el.dataset.t, el.dataset.id); if (m) return toast(m);
+    buzz(10);
+    if (el.dataset.src === 'live') { saveLive(d); openLive(); } else { saveDraft(); render(); }
+  },
+  'gt-reset': el => {
+    const d = el.dataset.src === 'live' ? liveState() : draft();
+    concReset(d, el.dataset.t);
+    if (el.dataset.src === 'live') { saveLive(d); openLive(); } else { saveDraft(); render(); }
+  },
   winner: el => { const d = draft(); d.winner = el.dataset.v; buzz(15); saveDraft(); render(); },
   'del-goal': el => { draft().goals.splice(+el.dataset.i, 1); saveDraft(); render(); toast('Tor gelöscht'); },
   discard: async () => {
@@ -1134,13 +1189,13 @@ const actions = {
     const d = draft();
     if (!draftReady(d)) return toast(d.noTeams ? 'Noch keine Tore eingetragen' : 'Bitte Teams und Sieger festlegen');
     const exists = !d.id && D.games.some(g => g.date === d.date);
-    const win = autoWinner(d), sc = liveScore(d);
+    const win = autoWinner(d), sc = draftScore(d);
     const summary = d.noTeams ? `${d.goals.length} Tore · ohne Teams` : `Alt ${sc.alt} : ${sc.jung} Jung<br><b>${win === 'draw' ? 'Unentschieden' : 'Sieg ' + TEAMS[win].name}</b>`;
     if (!(await confirmBox('Spiel speichern?', `${new Date(d.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}<br>${summary}${exists ? '<br><br><b>Achtung:</b> An diesem Tag gibt es schon ein Spiel. Es wird ein zweites angelegt.' : ''}`, 'Speichern'))) return;
     const btn = $('.save-bar .btn'); if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
     try {
       const game = { id: d.id || uid(), date: d.date, goals: d.goals };
-      if (!d.noTeams) { game.teams = { alt: d.teams.alt, jung: d.teams.jung }; game.result = { winner: win, alt: sc.alt, jung: sc.jung }; }
+      if (!d.noTeams) { const fs = draftScore(d); game.teams = { alt: d.teams.alt, jung: d.teams.jung }; game.result = { winner: win, alt: fs.alt, jung: fs.jung }; game.conceded = cleanConceded(d); }
       D = await Store.saveGame(game, S.pw);
       S.draft = null; ls.del('h2ku-draft'); S.mode = 'scorer';
       confetti(); buzz([30, 60, 30]); toast('Gespeichert');
@@ -1150,7 +1205,7 @@ const actions = {
   'edit-game': el => {
     const g = D.games.find(x => x.id === el.dataset.id);
     S.draft = { id: g.id, date: g.date, goals: g.goals.map(x => ({ ...x })), teams: hasTeams(g) ? { alt: [...g.teams.alt], jung: [...g.teams.jung] } : { alt: [], jung: [] },
-      noTeams: !hasTeams(g), winner: g.result?.winner && g.result.winner !== (() => { const s2 = liveScore(g); return s2.alt > s2.jung ? 'alt' : s2.jung > s2.alt ? 'jung' : 'draw'; })() ? g.result.winner : null, step: 'goals' };
+      noTeams: !hasTeams(g), winner: null, conceded: { ...(g.conceded || {}) }, res: g.result ? { ...g.result } : null, resLive: hasTeams(g) ? liveScore(g) : null, step: 'goals' };
     saveDraft(); S.mode = 'scorer';
     render(); scrollTo({ top: 0, behavior: 'smooth' });
   },

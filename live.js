@@ -98,15 +98,15 @@ function liveBoard(L) {
   </div>`;
 }
 function liveEnd(L) {
-  const sc = liveScore(L), auto = sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw', win = L.winner || auto;
-  const opt = (v, l) => `<button class="res-btn ${v} ${win === v ? 'on' : ''}" data-act="live-winner" data-v="${v}">${l}</button>`;
+  const sc = liveScore(L), win = sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw';
   return `<div class="lv-page">
     <div class="lv-bar"><button class="icon-btn" data-act="live-back" aria-label="Zurück">‹</button><b>Spiel beenden</b><span></span></div>
     <div class="card">
-      <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${L.teams.alt.length} Spieler</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${L.teams.jung.length} Spieler</small></div></div>
-      <div class="sec-title" style="margin:14px 0 8px;text-align:center">Wer hat gewonnen?</div>
-      <div class="res-row">${opt('alt', 'Alt')}${opt('draw', 'Remis')}${opt('jung', 'Jung')}</div>
+      <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${win === 'alt' ? 'Sieger' : '&nbsp;'}</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${win === 'jung' ? 'Sieger' : '&nbsp;'}</small></div></div>
+      ${win === 'draw' ? '<div class="empty" style="text-align:center;margin-top:6px">Unentschieden</div>' : ''}
     </div>
+    <div class="sec-title" style="margin:4px 0 8px">Wer stand im Tor?</div>
+    <div class="entry">${concHtml(L, 'live')}</div>
     <button class="btn gold" data-act="live-send">An Statistik senden</button>
     <button class="btn ghost" data-act="live-back" style="margin-top:8px">Weiterspielen</button>
   </div>`;
@@ -160,10 +160,10 @@ Object.assign(actions, {
   'live-winner': el => { const L = liveState(); L.winner = el.dataset.v; saveLive(L); openLive(); },
   'live-portrait': () => { S.livePortrait = true; $('.lv-rotate')?.classList.add('hide'); },
   'live-send': async el => {
-    const L = liveState(), sc = liveScore(L), auto = sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw';
+    const L = liveState(), sc = liveScore(L), win = sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw';
     el.disabled = true; el.textContent = 'Sende …';
     try {
-      D = await Store.submitDraft({ date: L.date, teams: L.teams, goals: L.goals, result: { winner: L.winner || auto, alt: sc.alt, jung: sc.jung } });
+      D = await Store.submitDraft({ date: L.date, teams: L.teams, goals: L.goals, result: { winner: win, alt: sc.alt, jung: sc.jung }, conceded: cleanConceded(L) });
       saveLive(null); closeLive(); S.tab = 'games'; render(true); confetti();
       toast('Gesendet – wartet auf Freigabe');
     } catch (e) { el.disabled = false; el.textContent = 'An Statistik senden'; toast('Fehler: ' + e.message); }
