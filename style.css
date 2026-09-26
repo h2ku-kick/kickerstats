@@ -586,7 +586,7 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .score-pill.sb small { font: 700 11px var(--display); text-transform: uppercase; opacity: .85; }
 
 /* ============ Spielerkarte (Wappenform) ============ */
-.fc { position: relative; width: 270px; height: 410px; color: var(--ink); background-size: 100% 100%; background-repeat: no-repeat; filter: drop-shadow(0 14px 26px rgba(0,0,0,.45)); }
+.fc { position: relative; width: 270px; height: 410px; color: var(--ink); background-size: 100% 100%; background-repeat: no-repeat; }
 .fc-tag { position: absolute; top: 12px; right: 22px; z-index: 2; font: 700 10px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; background: var(--ink); color: #111; }
 .t-potm .fc-tag { color: #3c1a6e; } .t-flop .fc-tag { color: #26401a; } .t-dream .fc-tag { color: #0b2350; } .t-inform .fc-tag { color: #15120a; }
 .fc-top { position: absolute; left: 20px; right: 20px; top: 26px; height: 168px; display: flex; gap: 8px; }
@@ -606,12 +606,11 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .fc-stats span { font: 700 13px var(--display); letter-spacing: .06em; opacity: .75; }
 .fc-stats b { font: 800 22px/1 var(--display); }
 .fc-foot { position: absolute; left: 0; right: 0; top: 350px; text-align: center; font: 700 11px var(--font); letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
-.fc-shine { position: absolute; inset: 0; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; background: linear-gradient(105deg, rgba(255,255,255,0) 28%, rgba(255,255,255,.12) 38%, rgba(255,255,255,.55) 47%, rgba(255,255,255,.75) 50%, rgba(255,255,255,.55) 53%, rgba(255,255,255,.12) 62%, rgba(255,255,255,0) 72%); background-size: 260% 100%; background-position: var(--gx, 100%) 0; mix-blend-mode: overlay; animation: cardShine 5s ease-in-out infinite; }
+.fc-shine { position: absolute; inset: 0; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; background: linear-gradient(105deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.35) 47%, rgba(255,255,255,.6) 50%, rgba(255,255,255,.35) 53%, rgba(255,255,255,0) 60%); background-size: 300% 100%; background-repeat: no-repeat; background-position: 120% 0; animation: cardShine 4.5s ease-in-out infinite; }
 .fc-shine { mix-blend-mode: screen; opacity: .68; }   /* 75 % der vorherigen Stärke */
 .t-inform .fc-shine, .t-dream .fc-shine, .t-potm .fc-shine, .t-flop .fc-shine, .t-back .fc-shine { opacity: .6; }
-.t-gold .fc-shine, .t-silver .fc-shine, .t-bronze .fc-shine { mix-blend-mode: normal; opacity: .41; }
-.fc-shine.live { animation: none; }
-@keyframes cardShine { 0%, 100% { background-position: 100% 0; } 50% { background-position: 0% 0; } }
+.t-gold .fc-shine, .t-silver .fc-shine, .t-bronze .fc-shine { mix-blend-mode: overlay; opacity: .75; }
+@keyframes cardShine { 0% { background-position: 120% 0; } 45% { background-position: -20% 0; } 100% { background-position: -20% 0; } }
 .sharing .fc-shine { display: none; }
 /* Rückseite */
 .fc-back-h { position: absolute; left: 30px; right: 30px; top: 30px; text-align: center; font: 800 22px/1.1 var(--display); text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,.25); }
@@ -623,13 +622,15 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .fc-scene { display: flex; justify-content: center; perspective: 1200px; margin-bottom: 6px; }
 .fc-flip { position: relative; width: 270px; height: 410px; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3,1.2,.4,1); cursor: pointer; }
 .fc-flip.flipped { transform: rotateY(180deg); }
-.fc-face { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.fc-face { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; transform: rotateY(0deg); }
+.fc-face > .fc { -webkit-backface-visibility: hidden; backface-visibility: hidden; }
 .fc-face.back { transform: rotateY(180deg); }
 /* Galerie */
 .gallery { display: grid; grid-template-columns: repeat(2, 162px); justify-content: center; gap: 12px 14px; }
 .mini { width: 162px; height: 246px; cursor: pointer; transition: transform .15s; }
 .mini:active { transform: scale(.96); }
-.mini .fc { transform: scale(.6); transform-origin: top left; filter: drop-shadow(0 8px 14px rgba(0,0,0,.4)); }
+.mini .fc { transform: scale(.6); transform-origin: top left; }
+.mini .fc-shine { display: none; }   /* Galerie: kein Glanz – läuft flüssiger */
 @media (min-width: 560px) { .gallery { grid-template-columns: repeat(3, 162px); } }
 /* Bewerten */
 .rate-row { margin-bottom: 14px; }

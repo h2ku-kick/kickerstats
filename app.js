@@ -559,15 +559,10 @@ function openRate(id) {
     ${sl('tem', 'Tempo')}${sl('dri', 'Dribbling')}${sl('abw', 'Abwehr')}
     <button class="btn gold" data-act="rate-save" data-id="${id}" style="margin-top:8px">${D.ratings.mine[id] ? 'Bewertung ändern' : 'Bewertung speichern'}</button></div>`, 'rate');
 }
-// Glanz: folgt der Handy-Neigung (oder dem Finger/Mauszeiger), sonst läuft er langsam von selbst
-let shineOn = false;
-function setShine(x) { document.documentElement.style.setProperty('--gx', Math.max(0, Math.min(100, x)) + '%'); document.querySelectorAll('.fc-shine').forEach(e => e.classList.add('live')); }
-function startShine() {
-  if (shineOn) return; shineOn = true;
-  window.addEventListener('deviceorientation', e => { if (e.gamma != null) setShine((e.gamma + 40) / 80 * 100); });
-  document.addEventListener('pointermove', e => { const c = e.target.closest?.('.fc-scene'); if (!c) return; const r = c.getBoundingClientRect(); setShine((e.clientX - r.left) / r.width * 100); });
-}
-function askMotion() { try { if (window.DeviceOrientationEvent?.requestPermission && !S.motionAsked) { S.motionAsked = true; DeviceOrientationEvent.requestPermission().catch(() => {}); } } catch {} }
+// Glanz läuft per CSS von selbst (ohne Neigesensor – der ließ den Streifen auf manchen Handys mitten auf der Karte stehen)
+function setShine() {}
+function startShine() {}
+function askMotion() {}
 
 function monthChart(id) {
   const months = [];
