@@ -114,6 +114,7 @@ const Store = {
       return this.data;
     }
     if (cached) this.data = this.normalize(cached);
+    if (this.queue.length) { this.flush(); return this.data; }
     const res = await fetch(CONFIG.API_URL + '?action=all&me=' + encodeURIComponent(this.me?.id || '') + '&t=' + Date.now());
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Laden fehlgeschlagen');
@@ -144,127 +145,137 @@ const Store = {
     try { await this.post({ action: 'login', pw }); return true; } catch { return false; }
   },
 
-  async saveGame(game, pw) {
-    if (this.online) { await this.post({ action: 'saveGame', pw, game }); return this.load(); }
-    const i = this.data.games.findIndex(g => g.id === game.id);
-    if (i >= 0) this.data.games[i] = game; else this.data.games.push(game);
-    this.data = this.normalize(this.data); this.cacheWrite(this.data);
+  /* ---------- Speichern im Hintergrund ----------
+     Änderung sofort auf dem Gerät übernehmen, dann der Reihe nach zum Server schicken.
+     Die Warteschlange liegt im Gerätespeicher – geht die App zu, wird beim nächsten Start weitergemacht.
+     Klappt etwas nicht, meldet onFail den Grund und der Serverstand wird neu geladen. */
+  queue: (() => { try { return JSON.parse(localStorage.getItem('h2ku-queue')) || []; } catch { return []; } })(),
+  idMap: {},                                  // vorläufige ID auf dem Gerät → echte ID vom Server
+  running: false,
+  onState: null, onSynced: null, onFail: null,
+  saveQueue() { try { localStorage.setItem('h2ku-queue', JSON.stringify(this.queue)); } catch {} },
+  get pending() { return this.queue.length; },
+  bg(body, local) {
+    local(); this.data = this.normalize(this.data); this.cacheWrite(this.data);
+    if (this.online) { this.queue.push(body); this.saveQueue(); this.flush(); }
     return this.data;
   },
-
-  async addPlayer(p, pw) {
-    if (this.online) { await this.post({ action: 'addPlayer', pw, player: p }); return this.load(); }
-    this.data.players.push({ ...p, active: true });
-    this.cacheWrite(this.data);
-    return this.data;
+  async flush() {
+    if (this.running || !this.queue.length) return;
+    this.running = true; this.onState?.(this.pending);
+    let failed = false;
+    while (this.queue.length) {
+      const body = { ...this.queue[0] };
+      ['id', 'game'].forEach(k => { if (typeof body[k] === 'string' && this.idMap[body[k]]) body[k] = this.idMap[body[k]]; });
+      let res, err;
+      for (let n = 0; n < 3; n++) {
+        try { res = await this.post(body); err = null; break; }
+        catch (e) { err = e; if (!(e instanceof TypeError)) break; await new Promise(r => setTimeout(r, 2000 * (n + 1))); }   // nur bei Netzfehlern nochmal
+      }
+      if (err instanceof TypeError) { this.running = false; this.onState?.(this.pending, 'offline'); return; }   // kein Netz: später weiter
+      if (err) { failed = true; this.onFail?.(err.message); }
+      else if (body._tmp && res && res.id) this.idMap[body._tmp] = res.id;
+      this.queue.shift(); this.saveQueue(); this.onState?.(this.pending);
+    }
+    this.running = false;
+    try { await this.load(); this.onSynced?.(failed); } catch { this.onState?.(0, 'offline'); }
   },
 
-  async setGuestActive(id, active, pw) {
-    if (this.online) { await this.post({ action: 'setGuestActive', pw, id, active }); return this.load(); }
-    const p = this.data.players.find(x => x.id === id && x.guest);
-    if (p) p.active = active;
-    this.cacheWrite(this.data);
-    return this.data;
+  saveGame(game, pw) {
+    return this.bg({ action: 'saveGame', pw, game }, () => {
+      const i = this.data.games.findIndex(g => g.id === game.id);
+      if (i >= 0) this.data.games[i] = game; else this.data.games.push(game);
+    });
   },
 
-  async deleteGuest(id, pw) {
-    if (this.online) { await this.post({ action: 'deleteGuest', pw, id }); return this.load(); }
+  addPlayer(p, pw) {
+    return this.bg({ action: 'addPlayer', pw, player: p }, () => this.data.players.push({ ...p, active: true }));
+  },
+
+  setGuestActive(id, active, pw) {
+    return this.bg({ action: 'setGuestActive', pw, id, active }, () => {
+      const p = this.data.players.find(x => x.id === id && x.guest);
+      if (p) p.active = active;
+    });
+  },
+
+  deleteGuest(id, pw) {
     if (this.data.games.some(g => g.goals.some(x => x.s === id || x.a === id))) throw new Error('Hat schon Tore oder Assists – bitte ausblenden statt löschen');
-    this.data.players = this.data.players.filter(x => x.id !== id);
-    this.cacheWrite(this.data);
-    return this.data;
+    return this.bg({ action: 'deleteGuest', pw, id }, () => { this.data.players = this.data.players.filter(x => x.id !== id); });
   },
 
-  async deleteGame(id, pw) {
-    if (this.online) { await this.post({ action: 'deleteGame', pw, id }); return this.load(); }
-    this.data.games = this.data.games.filter(g => g.id !== id);
-    this.data.comments = this.data.comments.filter(c => c.g !== id);
-    this.data.reactions = this.data.reactions.filter(r => r.g !== id);
-    this.cacheWrite(this.data);
-    return this.data;
+  deleteGame(id, pw) {
+    return this.bg({ action: 'deleteGame', pw, id }, () => {
+      this.data.games = this.data.games.filter(g => g.id !== id);
+      this.data.comments = this.data.comments.filter(c => c.g !== id);
+      this.data.reactions = this.data.reactions.filter(r => r.g !== id);
+    });
   },
 
-  async vote(month, pick, type = 'potm') {
+  vote(month, pick, type = 'potm') {
     if (!this.me) throw new Error('Bitte als Spieler anmelden');
     if (pick === this.me.id) throw new Error('Für dich selbst kannst du nicht stimmen');
-    if (this.online) { await this.post({ action: 'vote', month, pick, type, ...this.cred() }); return this.load(); }
-    this.data.votes = this.data.votes.filter(v => !(v.month === month && v.voter === this.me.id && v.type === type));
-    this.data.votes.push({ month, pick, voter: this.me.id, type });
-    this.cacheWrite(this.data);
-    return this.data;
+    return this.bg({ action: 'vote', month, pick, type, ...this.cred() }, () => {
+      this.data.votes = this.data.votes.filter(v => !(v.month === month && v.voter === this.me.id && v.type === type));
+      this.data.votes.push({ month, pick, voter: this.me.id, type });
+    });
   },
 
-  /* ---------- Reaktionen, Kommentare, Likes (sofort sichtbar, dann gespeichert) ---------- */
+  /* ---------- Reaktionen, Kommentare, Likes ---------- */
   toggleReact(g, e) {
     const r = this.data.reactions.find(x => x.g === g && x.e === e);
     if (r && r.mine) { r.n--; r.mine = false; if (r.n <= 0) this.data.reactions = this.data.reactions.filter(x => x !== r); }
     else if (r) { r.n++; r.mine = true; }
     else this.data.reactions.push({ g, e, n: 1, mine: true });
   },
-  async react(g, e) {
-    this.toggleReact(g, e); this.cacheWrite(this.data);
-    if (this.online) { try { await this.post({ action: 'react', game: g, emoji: e, ...this.cred() }); } catch (err) { this.toggleReact(g, e); this.cacheWrite(this.data); throw err; } }
-    return this.data;
-  },
+  react(g, e) { return this.bg({ action: 'react', game: g, emoji: e, ...this.cred() }, () => this.toggleReact(g, e)); },
   toggleLike(id) {
     const c = this.data.comments.find(x => x.id === id); if (!c) return;
     c.liked = !c.liked; c.likes += c.liked ? 1 : -1;
   },
-  async like(id) {
-    this.toggleLike(id); this.cacheWrite(this.data);
-    if (this.online) { try { await this.post({ action: 'like', id, ...this.cred() }); } catch (err) { this.toggleLike(id); this.cacheWrite(this.data); throw err; } }
-    return this.data;
+  like(id) { return this.bg({ action: 'like', id, ...this.cred() }, () => this.toggleLike(id)); },
+  comment(g, pid, text) {
+    const id = 'c-' + uid();
+    return this.bg({ action: 'comment', game: g, text, _tmp: id, ...this.cred() }, () =>
+      this.data.comments.push({ id, g, pid, text, t: new Date().toISOString(), mine: true, likes: 0, liked: false }));
   },
-  async comment(g, pid, text) {
-    let id = 'c-' + uid();
-    if (this.online) id = (await this.post({ action: 'comment', game: g, text, ...this.cred() })).id;
-    this.data.comments.push({ id, g, pid, text, t: new Date().toISOString(), mine: true, likes: 0, liked: false });
-    this.cacheWrite(this.data);
-    return this.data;
+  deleteComment(id, pw) {
+    return this.bg({ action: 'deleteComment', id, pw: pw || undefined, ...(pw ? {} : this.cred()) }, () => { this.data.comments = this.data.comments.filter(x => x.id !== id); });
   },
-  async deleteComment(id, pw) {
-    if (this.online) await this.post({ action: 'deleteComment', id, pw: pw || undefined, ...(pw ? {} : this.cred()) });
-    this.data.comments = this.data.comments.filter(x => x.id !== id);
-    this.cacheWrite(this.data);
-    return this.data;
-  },
-  async rate(target, vals) {
+  rate(target, vals) {
     if (!this.me) throw new Error('Bitte als Spieler anmelden');
     if (target === this.me.id) throw new Error('Dich selbst kannst du nicht bewerten');
-    if (this.online) { await this.post({ action: 'rate', target, ...vals, ...this.cred() }); return this.load(); }
-    const r = this.data.ratings, old = r.mine[target], a = r.agg[target] || (r.agg[target] = { n: 0, tem: 0, dri: 0, abw: 0 });
-    ['tem', 'dri', 'abw'].forEach(k => { const sum = a[k] * a.n - (old ? old[k] : 0) + vals[k]; a[k] = Math.round(sum / (a.n + (old ? 0 : 1)) * 10) / 10; });
-    if (!old) a.n++;
-    r.mine[target] = { ...vals };
-    this.cacheWrite(this.data);
-    return this.data;
+    return this.bg({ action: 'rate', target, ...vals, ...this.cred() }, () => {
+      const r = this.data.ratings, old = r.mine[target], a = r.agg[target] || (r.agg[target] = { n: 0, tem: 0, dri: 0, abw: 0 });
+      ['tem', 'dri', 'abw'].forEach(k => { const sum = a[k] * a.n - (old ? old[k] : 0) + vals[k]; a[k] = Math.round(sum / (a.n + (old ? 0 : 1)) * 10) / 10; });
+      if (!old) a.n++;
+      r.mine[target] = { ...vals };
+    });
   },
 
   /* ---------- Live-Spiele (warten auf Freigabe) ---------- */
-  async submitDraft(game) {
+  submitDraft(game) {
     if (!this.me) throw new Error('Bitte als Spieler anmelden');
-    if (this.online) { await this.post({ action: 'submitDraft', game, ...this.cred() }); return this.load(); }
-    this.data.drafts.unshift({ id: 'live-' + uid(), date: game.date, by: this.me.id, t: new Date().toISOString(), game });
-    this.cacheWrite(this.data); return this.data;
+    const id = 'live-' + uid();
+    return this.bg({ action: 'submitDraft', game, _tmp: id, ...this.cred() }, () =>
+      this.data.drafts.unshift({ id, date: game.date, by: this.me.id, t: new Date().toISOString(), game }));
   },
-  async deleteDraft(id, pw) {
-    if (this.online) { await this.post({ action: 'deleteDraft', id, ...(pw ? { pw } : this.cred()) }); return this.load(); }
-    this.data.drafts = this.data.drafts.filter(x => x.id !== id);
-    this.cacheWrite(this.data); return this.data;
+  deleteDraft(id, pw) {
+    return this.bg({ action: 'deleteDraft', id, ...(pw ? { pw } : this.cred()) }, () => { this.data.drafts = this.data.drafts.filter(x => x.id !== id); });
   },
-  async approveDraft(id, pw) {
-    if (this.online) { await this.post({ action: 'approveDraft', id, pw }); return this.load(); }
+  approveDraft(id, pw) {
     const d = this.data.drafts.find(x => x.id === id); if (!d) throw new Error('Live-Spiel nicht gefunden');
-    this.data.drafts = this.data.drafts.filter(x => x.id !== id);
-    return this.saveGame({ ...d.game, id }, pw);
+    return this.bg({ action: 'approveDraft', id, pw }, () => {
+      this.data.drafts = this.data.drafts.filter(x => x.id !== id);
+      this.data.games.push({ ...d.game, id });
+    });
   },
 
-  async setFlop(month, flop, note, pw) {
-    if (this.online) { await this.post({ action: 'setFlop', pw, month, flop, note }); return this.load(); }
-    this.data.months = this.data.months.filter(x => x.m !== month);
-    if (flop) this.data.months.push({ m: month, flop, note });
-    this.cacheWrite(this.data);
-    return this.data;
+  setFlop(month, flop, note, pw) {
+    return this.bg({ action: 'setFlop', pw, month, flop, note }, () => {
+      this.data.months = this.data.months.filter(x => x.m !== month);
+      if (flop) this.data.months.push({ m: month, flop, note });
+    });
   },
 
   resetDemo(empty) {

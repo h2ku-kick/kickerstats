@@ -316,7 +316,10 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .tabbar button.plus.on svg { color: #fff; }
 
 /* ---------- Toast ---------- */
-.toast { position: fixed; z-index: 90; left: 50%; bottom: calc(var(--tab-h) + var(--safe-b) + 80px); transform: translateX(-50%); background: #fff; color: #001634; font-weight: 600; font-size: 14px; padding: 11px 16px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: toastIn .3s cubic-bezier(.3,1.5,.5,1) both; max-width: calc(100% - 32px); text-align: center; }
+/* Rückfragen liegen auch über Live-Spiel und Easter Egg */
+.sheet[data-kind="confirm"] { z-index: 131; }
+.sheet-bg[data-kind="confirm"] { z-index: 130; }
+.toast { position: fixed; z-index: 140; left: 50%; bottom: calc(var(--tab-h) + var(--safe-b) + 80px); transform: translateX(-50%); background: #fff; color: #001634; font-weight: 600; font-size: 14px; padding: 11px 16px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: toastIn .3s cubic-bezier(.3,1.5,.5,1) both; max-width: calc(100% - 32px); text-align: center; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 20px); } }
 #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 95; }
 
@@ -611,6 +614,7 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .t-inform .fc-shine, .t-dream .fc-shine, .t-potm .fc-shine, .t-flop .fc-shine, .t-back .fc-shine { opacity: .6; }
 .t-gold .fc-shine, .t-silver .fc-shine, .t-bronze .fc-shine { mix-blend-mode: overlay; opacity: .75; }
 @keyframes cardShine { 0% { background-position: 120% 0; } 45% { background-position: -20% 0; } 100% { background-position: -20% 0; } }
+.fc-shine.tilt { animation: none; transition: background-position .12s linear; }
 .sharing .fc-shine { display: none; }
 /* Rückseite */
 .fc-back-h { position: absolute; left: 30px; right: 30px; top: 30px; text-align: center; font: 800 22px/1.1 var(--display); text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,.25); }

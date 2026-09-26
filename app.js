@@ -548,7 +548,7 @@ function openFifa(id) {
     <div class="btn-row"><button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Teilen</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}">Bewerten</button>` : ''}</div>
     <details class="how"><summary>${I.info} Wie entstehen die Werte?</summary><p>TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte. Karte antippen zum Umdrehen.</p></details>
   </div>`, 'fifa');
-  startShine();
+  askMotion(); startShine();
 }
 function openRate(id) {
   const cur = D.ratings.mine[id] || teamVals(id);
@@ -559,10 +559,38 @@ function openRate(id) {
     ${sl('tem', 'Tempo')}${sl('dri', 'Dribbling')}${sl('abw', 'Abwehr')}
     <button class="btn gold" data-act="rate-save" data-id="${id}" style="margin-top:8px">${D.ratings.mine[id] ? 'Bewertung ändern' : 'Bewertung speichern'}</button></div>`, 'rate');
 }
-// Glanz läuft per CSS von selbst (ohne Neigesensor – der ließ den Streifen auf manchen Handys mitten auf der Karte stehen)
-function setShine() {}
-function startShine() {}
-function askMotion() {}
+/* Glanz folgt der Handyneigung. Solange keine Sensordaten kommen, läuft er per CSS von selbst.
+   Die Ruhelage wandert langsam mit: Hält man das Handy still, gleitet der Streifen von der Karte
+   (früher blieb er auf manchen Handys mittig stehen – die Karte wirkte dann ausgegraut). */
+let tilt = null;
+function onTilt(e) {
+  if (e.beta == null || e.gamma == null || !tilt) return;
+  const els = document.querySelectorAll('.sheet .fc-shine');
+  if (!els.length) return stopShine();
+  const now = performance.now();
+  if (!tilt.base) { tilt.base = { b: e.beta, g: e.gamma }; tilt.last = now; return; }
+  const k = Math.min(1, (now - tilt.last) / 2500); tilt.last = now;   // Ruhelage folgt in ~2,5 s
+  tilt.base.b += (e.beta - tilt.base.b) * k; tilt.base.g += (e.gamma - tilt.base.g) * k;
+  const d = (e.gamma - tilt.base.g) + (e.beta - tilt.base.b) * 0.6;
+  if (Math.abs(d) < 0.8 && !tilt.on) return;                          // erst echte Bewegung übernimmt den Glanz
+  tilt.on = true;
+  // 120 % = rechts neben der Karte, -20 % = links daneben; Neigen schiebt den Streifen quer rüber
+  const x = d >= 0 ? Math.max(-20, 120 - d * 7) : Math.min(120, -20 - d * 7);
+  els.forEach(el => { el.classList.add('tilt'); el.style.backgroundPosition = x.toFixed(1) + '% 0'; });
+}
+function startShine() {
+  stopShine();
+  if (!('DeviceOrientationEvent' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  tilt = { base: null, on: false };
+  addEventListener('deviceorientation', onTilt);
+}
+function stopShine() { removeEventListener('deviceorientation', onTilt); tilt = null; }
+// iPhone fragt einmal nach Erlaubnis – geht nur direkt nach einem Tippen
+function askMotion() {
+  const D0 = window.DeviceOrientationEvent;
+  if (D0 && typeof D0.requestPermission === 'function' && !ls.get('h2ku-motion', false))
+    D0.requestPermission().then(r => { if (r === 'granted') { ls.set('h2ku-motion', true); startShine(); } }).catch(() => {});
+}
 
 function monthChart(id) {
   const months = [];
@@ -842,7 +870,7 @@ function openSheet(html, kind, dir) {
     return;
   }
   closeSheet(true);
-  const bg = document.createElement('div'); bg.className = 'sheet-bg'; bg.dataset.act = 'close';
+  const bg = document.createElement('div'); bg.className = 'sheet-bg'; bg.dataset.act = 'close'; bg.dataset.kind = kind;
   const sh = document.createElement('div'); sh.className = 'sheet'; sh.dataset.kind = kind;
   sh.innerHTML = `<div class="grab"></div><button class="x" data-act="close" aria-label="Schließen">✕</button>` + html;
   document.body.append(bg, sh);
@@ -1115,7 +1143,7 @@ const actions = {
       if (!d.noTeams) { game.teams = { alt: d.teams.alt, jung: d.teams.jung }; game.result = { winner: win, alt: sc.alt, jung: sc.jung }; }
       D = await Store.saveGame(game, S.pw);
       S.draft = null; ls.del('h2ku-draft'); S.mode = 'scorer';
-      confetti(); buzz([30, 60, 30]); toast('Gespeichert – alle sehen es jetzt');
+      confetti(); buzz([30, 60, 30]); toast('Gespeichert');
       S.tab = 'home'; S.scope = 'month'; S.month = d.date.slice(0, 7); render(true); scrollTo(0, 0);
     } catch (e) { toast('Fehler: ' + e.message); if (/passwort/i.test(e.message)) { S.pw = null; ls.del('h2ku-pw'); } render(); }
   },
@@ -1225,10 +1253,15 @@ function loginPin(pid) {
    ============================================================ */
 function indexPlayers() { Object.keys(byId).forEach(k => delete byId[k]); D.players.forEach(p => byId[p.id] = p); }
 function setSync(state, text) { const s = $('#sync'); s.className = 'sync ' + state; s.querySelector('span').textContent = text; }
+const clock = () => new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+// Speichern läuft im Hintergrund: oben rechts sieht man, ob noch etwas unterwegs ist
+Store.onState = (n, st) => { if (st === 'offline') setSync('off', n ? `Offline · ${n} offen` : 'Offline'); else if (n) setSync('busy', 'Speichert …'); };
+Store.onSynced = () => { D = Store.data; indexPlayers(); if (!document.activeElement?.matches?.('main input, #login input')) render(); setSync('', clock()); };
+Store.onFail = msg => { toast('Nicht gespeichert: ' + msg); if (/passwort/i.test(msg)) { S.pw = null; ls.del('h2ku-pw'); } };
 async function refresh() {
   if (!Store.online) { setSync('off', 'Prototyp'); return; }
   setSync('busy', 'Lädt …');
-  try { D = await Store.load(); indexPlayers(); renderMeBtn(); if (S.me && !byId[S.me]) { setMe(null); showLogin(); } if (!document.activeElement?.matches?.('main input, #login input')) render(); if ($('#login') && !$('#pin1')) showLogin(); setSync('', new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })); }
+  try { D = await Store.load(); indexPlayers(); renderMeBtn(); if (S.me && !byId[S.me]) { setMe(null); showLogin(); } if (!document.activeElement?.matches?.('main input, #login input')) render(); if ($('#login') && !$('#pin1')) showLogin(); if (!Store.pending) setSync('', clock()); }
   catch { setSync('off', 'Offline'); }
 }
 (async function init() {
@@ -1242,6 +1275,7 @@ async function refresh() {
   if (!S.me && !S.guest) showLogin();
   refresh();
   $('#sync').addEventListener('click', refresh);
+  addEventListener('online', () => Store.flush());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     // Neue Fassung verfügbar → einmal automatisch neu laden (nur wenn vorher schon eine Fassung aktiv war)
