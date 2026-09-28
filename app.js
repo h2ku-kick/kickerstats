@@ -304,7 +304,7 @@ function latestPotm() {
 /* ============================================================
    RENDER
    ============================================================ */
-const views = { home: viewHome, players: viewPlayers, games: viewGames, month: viewMonth, admin: viewAdmin };
+const views = { home: viewHome, players: viewPlayers, manager: () => viewManager(), games: viewGames, month: viewMonth, admin: viewAdmin };
 function render(anim = false) {
   const main = $('#main');
   main.innerHTML = `<div class="${anim ? 'view' : ''}">${views[S.tab]()}</div>`;
@@ -1194,7 +1194,7 @@ const actions = {
     if (!(await confirmBox('Spiel speichern?', `${new Date(d.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}<br>${summary}${exists ? '<br><br><b>Achtung:</b> An diesem Tag gibt es schon ein Spiel. Es wird ein zweites angelegt.' : ''}`, 'Speichern'))) return;
     const btn = $('.save-bar .btn'); if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
     try {
-      const game = { id: d.id || uid(), date: d.date, goals: d.goals };
+      const game = { id: d.id || uid(), date: d.date, goals: d.goals, at: d.id ? (D.games.find(x => x.id === d.id)?.at || '') : new Date().toISOString() };
       if (!d.noTeams) { const fs = draftScore(d); game.teams = { alt: d.teams.alt, jung: d.teams.jung }; game.result = { winner: win, alt: fs.alt, jung: fs.jung }; game.conceded = cleanConceded(d); }
       D = await Store.saveGame(game, S.pw);
       S.draft = null; ls.del('h2ku-draft'); S.mode = 'scorer';
@@ -1237,6 +1237,7 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => {
   const k = e.target.dataset.input;
   if (k === 'filter') { S.filter = e.target.value; const pos = e.target.selectionStart; render(); const inp = $('.search'); inp.focus(); inp.setSelectionRange(pos, pos); }
+  if (k === 'mq') { S.mq = e.target.value; const pos = e.target.selectionStart; render(); const inp = $('[data-input=mq]'); inp.focus(); inp.setSelectionRange(pos, pos); }
   if (k === 'date') { draft().date = e.target.value || isoDate(TODAY); saveDraft(); }
   if (k === 'cm') S.cmDraft[e.target.dataset.g] = e.target.value;
   if (k === 'rate') { const o = document.getElementById('rv-' + e.target.dataset.k); if (o) o.textContent = e.target.value; }

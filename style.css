@@ -312,13 +312,83 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .icon-btn.danger { color: var(--red2); }
 
 /* ---------- Tabbar ---------- */
-.tabbar { position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + var(--safe-b)); padding-bottom: var(--safe-b); display: grid; grid-template-columns: repeat(5, 1fr); background: rgba(0,18,44,.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+.tabbar { position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + var(--safe-b)); padding-bottom: var(--safe-b); display: grid; grid-template-columns: repeat(5, 1fr) .9fr; background: rgba(0,18,44,.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
 .tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; font-weight: 600; color: var(--faint); transition: color .2s; }
 .tabbar button svg { width: 24px; height: 24px; transition: transform .25s cubic-bezier(.3,1.6,.5,1); }
 .tabbar button.on { color: #fff; }
 .tabbar button.on svg { transform: translateY(-2px) scale(1.1); color: var(--red2); }
 .tabbar button.plus svg { color: #fff; background: var(--red); border-radius: 12px; padding: 4px; width: 32px; height: 32px; box-shadow: 0 4px 14px rgba(225,0,38,.5); }
 .tabbar button.plus.on svg { color: #fff; }
+.tabbar button.plus { border-left: 1px solid var(--line); }
+/* Manager (Kick7) */
+.mg-join { text-align: center; padding: 18px 16px; }
+.mg-join-cards { position: relative; height: 150px; margin: 0 auto 14px; width: 240px; }
+.mg-join-cards .mgc { position: absolute; top: 0; }
+.mg-join-cards .r0 { left: 74px; z-index: 2; top: -4px; }
+.mg-join-cards .r1 { left: 10px; transform: rotate(-9deg); }
+.mg-join-cards .r2 { left: 138px; transform: rotate(9deg); }
+.mg-join-list { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+.mg-join-list b { color: #fff; }
+.mg-card { padding: 12px; }
+.mg-form { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+.mg-form button { flex: 1; padding: 7px 4px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid var(--line); font: 700 14px var(--display); color: var(--muted); }
+.mg-form button.on { background: var(--gold); color: #111; border-color: var(--gold); }
+.mg-form.ro span { font: 700 14px var(--display); color: var(--muted); }
+.mg-field { position: relative; padding: 10px 4px; border-radius: 16px; background: repeating-linear-gradient(0deg, #0f5a2c 0 44px, #11642f 44px 88px); border: 2px solid rgba(255,255,255,.35); overflow: hidden; }
+.mg-field::before { content: ''; position: absolute; left: 22%; right: 22%; bottom: -2px; height: 70px; border: 2px solid rgba(255,255,255,.35); border-bottom: 0; }
+.mg-field::after { content: ''; position: absolute; left: -2px; right: -2px; top: -46px; height: 90px; border-bottom: 2px solid rgba(255,255,255,.35); border-radius: 0 0 50% 50% / 0 0 30% 30%; opacity: .6; }
+.mg-line { position: relative; z-index: 1; display: flex; justify-content: center; gap: 6px; margin: 4px 0; }
+.mgc { position: relative; width: 92px; height: 140px; flex: 0 0 auto; border-radius: 12px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mgc .fc { transform: scale(.3407); transform-origin: top left; pointer-events: none; }
+.mgc .fc-shine { display: none; }
+.mgc em { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); font: 700 10px/1 var(--font); font-style: normal; background: rgba(0,10,25,.85); color: #fff; padding: 3px 6px; border-radius: 999px; white-space: nowrap; }
+.mgc .mg-cap { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); color: #111; font: 800 12px/20px var(--display); text-align: center; font-style: normal; }
+.mgc .mg-pts { position: absolute; top: 25px; right: 2px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 999px; background: #fff; color: #001634; font: 800 12px/20px var(--display); text-align: center; font-style: normal; }
+.mgc.empty { display: grid; place-items: center; border: 2px dashed rgba(255,255,255,.4); background: rgba(0,0,0,.18); }
+.mgc.empty span { font: 800 20px var(--display); color: rgba(255,255,255,.75); }
+.mgc.over { outline: 3px solid var(--gold); outline-offset: 2px; }
+.mgc.lifted { opacity: .35; }
+.mgc.ghost { position: fixed; z-index: 150; pointer-events: none; transform: scale(1.08) rotate(-2deg); filter: drop-shadow(0 10px 16px rgba(0,0,0,.5)); }
+.mg-bench { margin-top: 10px; padding: 8px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid var(--line); }
+.mg-bench small { display: block; font: 700 11px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px 4px; }
+.mg-bench > div { display: flex; justify-content: center; gap: 6px; }
+.mg-bench .mgc.empty { border-color: rgba(255,255,255,.2); }
+@media (max-width: 359px) { .mgc { width: 80px; height: 122px; } .mgc .fc { transform: scale(.2963); } }
+.mg-title { text-align: center; margin: 2px 0 12px; }
+.mg-title b { display: block; font: 800 34px/1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.mg-title b span { color: var(--gold); }
+.mg-title small { font-size: 12px; color: var(--muted); }
+.mg-head { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.mg-head div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 6px; text-align: center; }
+.mg-head b { display: block; font: 700 22px/1.1 var(--display); }
+.mg-head span { font-size: 11px; color: var(--muted); }
+.mg-pitch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; border-radius: 16px; background: repeating-linear-gradient(0deg, #0f5a2c 0 34px, #11642f 34px 68px); border: 1px solid rgba(255,255,255,.15); }
+.mg-slot { position: relative; text-align: center; padding: 8px 4px; border-radius: 14px; background: rgba(0,20,10,.45); }
+.mg-slot img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 4px; border: 2px solid rgba(255,255,255,.8); }
+.mg-slot b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-slot small { display: block; font-size: 11px; color: #cfe9d6; }
+.mg-slot em { position: absolute; top: 4px; left: 4px; font: 700 11px/1 var(--display); font-style: normal; background: var(--gold); color: #111; padding: 3px 5px; border-radius: 999px; }
+.mg-slot.empty { border: 1px dashed rgba(255,255,255,.35); background: rgba(0,0,0,.15); }
+.mg-slot.empty .plus-c { width: 54px; height: 54px; margin: 0 auto 4px; border-radius: 50%; display: grid; place-items: center; font: 700 28px/1 var(--display); color: #cfe9d6; }
+.mg-cap { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); color: #111; font: 800 12px/20px var(--display); }
+.mg-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+.mg-bar { position: sticky; top: calc(62px + var(--safe-t)); z-index: 10; display: flex; justify-content: space-between; padding: 10px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; }
+.mg-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.mg-row:last-child { border-bottom: 0; }
+.mg-row img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
+.mg-row .t { flex: 1; min-width: 0; }
+.mg-row .t b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-row .t small { font-size: 11.5px; color: var(--muted); }
+.mg-row .mv { font: 700 16px var(--display); white-space: nowrap; }
+.mg-btn { padding: 7px 10px; border-radius: 10px; background: var(--red); color: #fff; font-weight: 700; font-size: 12px; }
+.mg-btn:disabled { opacity: .35; }
+.mg-btn.own { background: rgba(255,255,255,.1); color: var(--muted); }
+.mg-up { color: var(--ok); } .mg-down { color: var(--red2); } .mg-flat { color: var(--faint); }
+.mg-sub { display: block; font-size: 11px; color: var(--muted); }
+.mg-owner { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.mg-owner img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+.mg-owner h2 { margin: 0; font: 800 22px var(--display); text-transform: uppercase; }
+.mg-owner span { font-size: 12.5px; color: var(--muted); }
 
 /* ---------- Toast ---------- */
 /* Rückfragen liegen auch über Live-Spiel und Easter Egg */

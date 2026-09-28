@@ -99,7 +99,7 @@ const Store = {
     return { players, games: (d.games || []).slice().sort((a, b) => a.date.localeCompare(b.date)), votes: (d.votes || []).map(v => ({ ...v, type: v.type === 'flop' ? 'flop' : 'potm' })),
       reactions: d.reactions || [], comments: d.comments || [], months: d.months || [], pins: d.pins || {}, demo: !!d.demo,
       ratings: { agg: (d.ratings && d.ratings.agg) || {}, mine: (d.ratings && d.ratings.mine) || {} },
-      drafts: (d.drafts || []).slice().sort((a, b) => b.date.localeCompare(a.date)) };
+      drafts: (d.drafts || []).slice().sort((a, b) => b.date.localeCompare(a.date)), mgr: (d.mgr || []).slice().sort((a, b) => a.t.localeCompare(b.t)) };
   },
 
   /* Sofort aus dem Speicher des Geräts, dann (online) frisch nachladen */
@@ -269,6 +269,19 @@ const Store = {
       this.data.drafts = this.data.drafts.filter(x => x.id !== id);
       this.data.games.push({ ...d.game, id });
     });
+  },
+
+  /* ---------- Manager: kaufen, verkaufen, Kapitän ---------- */
+  mgr(op, player, price) {
+    if (!this.me) throw new Error('Bitte als Spieler anmelden');
+    const s = mgrState(this.me.id), has = s.squad.includes(player);
+    if (op === 'buy') {
+      if (has) throw new Error('Schon in deinem Kader');
+      if (s.squad.length >= MGR.SQUAD) throw new Error(`Kader ist voll (${MGR.SQUAD} Spieler)`);
+      if (price > s.cash + 1e-9) throw new Error('Nicht genug Geld in der Kasse');
+    } else if (op !== 'line' && op !== 'join' && !has) throw new Error('Nicht in deinem Kader');
+    return this.bg({ action: 'mgr', op, player, ...this.cred() }, () =>
+      this.data.mgr.push({ t: new Date().toISOString(), day: isoDate(new Date()), pid: this.me.id, op, player, price }));
   },
 
   setFlop(month, flop, note, pw) {

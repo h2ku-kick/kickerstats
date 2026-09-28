@@ -155,7 +155,7 @@ Object.assign(actions, {
     buzz(on ? [20, 30, 20] : 10); saveLive(L); openLive();
   },
   'live-undo': () => { const L = liveState(); const g = L.goals.pop(); saveLive(L); openLive(); if (g) toast(`Tor ${short(g.s)} entfernt`); },
-  'live-finish': () => { const L = liveState(); livePending = null; L.step = 'end'; saveLive(L); exitFs(); openLive(); },
+  'live-finish': () => { const L = liveState(); livePending = null; L.step = 'end'; L.endAt = new Date().toISOString(); saveLive(L); exitFs(); openLive(); },
   'live-back': () => { const L = liveState(); L.step = 'play'; saveLive(L); goFs(); openLive(); },
   'live-winner': el => { const L = liveState(); L.winner = el.dataset.v; saveLive(L); openLive(); },
   'live-portrait': () => { S.livePortrait = true; $('.lv-rotate')?.classList.add('hide'); },
@@ -163,7 +163,7 @@ Object.assign(actions, {
     const L = liveState(), sc = liveScore(L), win = sc.alt > sc.jung ? 'alt' : sc.jung > sc.alt ? 'jung' : 'draw';
     el.disabled = true; el.textContent = 'Sende …';
     try {
-      D = await Store.submitDraft({ date: L.date, teams: L.teams, goals: L.goals, result: { winner: win, alt: sc.alt, jung: sc.jung }, conceded: cleanConceded(L) });
+      D = await Store.submitDraft({ date: L.date, teams: L.teams, goals: L.goals, result: { winner: win, alt: sc.alt, jung: sc.jung }, conceded: cleanConceded(L), at: L.endAt || new Date().toISOString() });
       saveLive(null); closeLive(); S.tab = 'games'; render(true); confetti();
       toast('Gesendet – wartet auf Freigabe');
     } catch (e) { el.disabled = false; el.textContent = 'An Statistik senden'; toast('Fehler: ' + e.message); }
