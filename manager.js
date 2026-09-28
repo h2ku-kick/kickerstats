@@ -8,8 +8,9 @@
 const MGR = { BUDGET: 50, SQUAD: 10, FIELD: 7, WINDOW: 5, PAD: 1.5, POTM: 10, FLOP: -5 };
 const FORMATIONS = ['3-2-1', '2-3-1', '2-2-2', '3-1-2', '3-3'];
 
-// Punkte eines Spielers in einem Spiel – null = nicht dabei. Torwart-Punkte (+3, je Gegentor −1) nur mit gk.
-function fpts(g, id, gk = true) {
+// Punkte eines Spielers in einem Spiel – null = nicht dabei. Gegentore kosten jeden, der sie kassiert hat (Rotation im Tor);
+// gk = steht in der Kick7-Aufstellung auf der TW-Position → +2
+function fpts(g, id, gk = false) {
   const t = g.teams && (g.teams.alt || []).length + (g.teams.jung || []).length ? (g.teams.alt.indexOf(id) >= 0 ? 'alt' : g.teams.jung.indexOf(id) >= 0 ? 'jung' : null) : null;
   const inv = g.goals.some(x => x.s === id || x.a === id);
   if (!t && !inv) return null;
@@ -17,7 +18,8 @@ function fpts(g, id, gk = true) {
   g.goals.forEach(x => { if (x.s === id) p += 4 + (x.best ? 3 : 0); if (x.a === id) p += 3; });
   if (t && g.result && g.result.winner === t) p += 2;          // Sieg
   const c = g.conceded && g.conceded[id];
-  if (c && gk) p += 3 - c;                                     // im Tor
+  if (c) p -= c;                                               // je Gegentor −1
+  if (gk) p += 2;                                              // TW-Position
   return p;
 }
 // Marktwert in Mio. aus den letzten 5 Spielen – das neueste zählt am meisten. Nicht dabei = 0 Punkte, schlechte Spiele drücken den Wert.
@@ -150,7 +152,7 @@ function mgrTableView() {
 }
 function mgrRules() {
   return `<details class="how"><summary>${I.info} Regeln</summary><p>Kader: ${MGR.SQUAD} Spieler, davon ${MGR.FIELD} auf dem Feld (Torwart + Formation). Nur wer auf dem Feld steht, punktet.<br>
-    Dabei +1 · Tor +4 · Assist +3 · Sieg +2 · Tor des Spiels +3 · Kapitän zählt doppelt.<br>Auf der TW-Position: +3, je Gegentor −1 (wenn er wirklich im Tor stand).<br>
+    Dabei +1 · Tor +4 · Assist +3 · Sieg +2 · Tor des Spiels +3 · Kapitän zählt doppelt.<br>Je kassiertes Gegentor −1 (egal wo er bei dir steht) · Spieler auf deiner TW-Position +2.<br>
     Spieler des Monats im Kader +${MGR.POTM}, Flop des Monats −${-MGR.FLOP}.<br>Start mit ${MGR.BUDGET} Mio, jeder darf jeden kaufen – auch sich selbst. Marktwert = Punkte der letzten ${MGR.WINDOW} Spiele (das letzte zählt am meisten, nicht dabei = 0).<br>
     Es zählt deine Aufstellung in dem Moment, in dem ein Spiel eingetragen oder ein Live-Spiel gestoppt wird.</p></details>`;
 }

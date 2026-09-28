@@ -165,6 +165,18 @@ function statRaw(games) {
   });
   return out;
 }
+/* Abwehr leidet unter Gegentoren und hohen Niederlagen – prozentual, nur die letzten 10 Spiele, höchstens −20 %.
+   So erholt sich der Wert wieder und niemand rutscht dauerhaft in den Keller. */
+const ABW_MALUS = { WINDOW: 10, GOAL: 0.01, LOSS: 0.02, MARGIN: 3, MAX: 0.2 };
+function abwMalus(id, games) {
+  let pen = 0;
+  games.filter(g => played(g, id)).slice(-ABW_MALUS.WINDOW).forEach(g => {
+    pen += (g.conceded?.[id] || 0) * ABW_MALUS.GOAL;
+    const t = teamOf(g, id), w = winnerOf(g), sc = scoreOf(g);
+    if (t && w && w !== 'draw' && w !== t && sc && Math.abs(sc.alt - sc.jung) >= ABW_MALUS.MARGIN) pen += ABW_MALUS.LOSS;
+  });
+  return Math.min(ABW_MALUS.MAX, Math.round(pen * 100) / 100);
+}
 function fifaOf(id, games = D.games) {
   const live = games === D.games, m = memo();
   if (live && m.fifa[id]) return m.fifa[id];
@@ -179,7 +191,8 @@ function fifaOf(id, games = D.games) {
   out.VOR = sc(0.5 * rel(me.VOR, pool.map(r => r.VOR)) + 0.5 * rel(me.totA, all.map(r => r.totA)));
   out.FRM = sc(rel(me.FRM, pool.map(r => r.FRM)));
   const tv = teamVals(id);
-  Object.assign(out, { TEM: tv.TEM, DRI: tv.DRI, ABW: tv.ABW, src: tv.src, votes: tv.n, games: me.n });
+  const mal = abwMalus(id, games);
+  Object.assign(out, { TEM: tv.TEM, DRI: tv.DRI, ABW: Math.round(tv.ABW * (1 - mal)), abwMal: mal, src: tv.src, votes: tv.n, games: me.n });
   out.OVR = Math.round((out.TEM + out.DRI + out.ABW + out.TOR + out.VOR + out.FRM) / 6);
   out.tier = out.OVR >= 80 ? 'gold' : out.OVR >= 65 ? 'silver' : 'bronze';
   if (live) m.fifa[id] = out;
@@ -558,7 +571,7 @@ function openFifa(id) {
       <div class="fc-face back">${cardBack(id)}</div>
     </div></div>
     <div class="btn-row"><button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Teilen</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}">Bewerten</button>` : ''}</div>
-    <details class="how"><summary>${I.info} Wie entstehen die Werte?</summary><p>TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte. Karte antippen zum Umdrehen.</p></details>
+    <details class="how"><summary>${I.info} Wie entstehen die Werte?</summary><p>TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>ABW sinkt je Gegentor um 1 % und je Niederlage mit 3+ Toren Abstand um 2 % (letzte 10 Spiele, höchstens −20 %)${f.abwMal ? ` – aktuell −${Math.round(f.abwMal * 100)} %` : ''}.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte. Karte antippen zum Umdrehen.</p></details>
   </div>`, 'fifa');
   askMotion(); startShine();
 }
