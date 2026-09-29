@@ -5,10 +5,11 @@
    Jeder darf jeden kaufen (auch sich selbst). Gekauft und verkauft wird zum Marktwert.
    Punkte und Marktwert rechnet der Server genauso (Code.gs) – dort wird der Preis geprüft.
    ============================================================ */
-const MGR = { BUDGET: 50, SQUAD: 10, FIELD: 7, WINDOW: 5, PAD: 1.5, POTM: 10, FLOP: -5 };
+const MGR = { BUDGET: 50, SQUAD: 10, FIELD: 7, WINDOW: 5, PAD: 1.5, POTM: 10, FLOP: -5, BASE: 1, PER_PT: 0.1, FEE: 0.05 };
 const FORMATIONS = ['3-2-1', '2-3-1', '2-2-2', '3-1-2', '3-3'];
 
-// Punkte eines Spielers in einem Spiel – null = nicht dabei. Gegentore kosten jeden, der sie kassiert hat (Rotation im Tor);
+// Punkte eines Spielers in einem Spiel – null = nicht dabei.
+// Torwart: +4 pro Team (geteilt durch die Zahl der Torhüter), je eigenes Gegentor −1, zu null +3, Sieg +1 extra.
 // gk = steht in der Kick7-Aufstellung auf der TW-Position → +2
 function fpts(g, id, gk = false) {
   const t = g.teams && (g.teams.alt || []).length + (g.teams.jung || []).length ? (g.teams.alt.indexOf(id) >= 0 ? 'alt' : g.teams.jung.indexOf(id) >= 0 ? 'jung' : null) : null;
@@ -17,8 +18,14 @@ function fpts(g, id, gk = false) {
   let p = 1;                                                   // dabei
   g.goals.forEach(x => { if (x.s === id) p += 4 + (x.best ? 3 : 0); if (x.a === id) p += 3; });
   if (t && g.result && g.result.winner === t) p += 2;          // Sieg
-  const c = g.conceded && g.conceded[id];
-  if (c) p -= c;                                               // je Gegentor −1
+  const c = g.conceded || {};
+  if (t && Object.prototype.hasOwnProperty.call(c, id)) {     // stand im Tor
+    const mates = Object.keys(c).filter(k => (g.teams[t] || []).indexOf(k) >= 0).length || 1;
+    p += Math.floor(4 / mates) - (Number(c[id]) || 0);          // Torwart-Bonus (geteilt), je Gegentor −1
+    const opp = g.result ? (t === 'alt' ? g.result.jung : g.result.alt) : null;
+    if (opp === 0) p += 3;                                     // zu null
+    if (g.result && g.result.winner === t) p += 1;             // Sieg als Torwart
+  }
   if (gk) p += 2;                                              // TW-Position
   return p;
 }
@@ -35,44 +42,104 @@ const mvNow = id => marketValue(id, D.games);
 const mvTrend = id => D.games.length ? Math.round((mvNow(id) - marketValue(id, D.games.slice(0, -1))) * 10) / 10 : 0;
 const trendHtml = d => d > 0 ? `<span class="mg-up">▲ ${String(d).replace('.', ',')}</span>` : d < 0 ? `<span class="mg-down">▼ ${String(-d).replace('.', ',')}</span>` : '<span class="mg-flat">–</span>';
 
-// Zeitpunkt, zu dem ein Spiel eingetragen wurde (alte Spiele ohne Zeitstempel: Ende des Spieltags)
-const gameAt = g => g.at ? Date.parse(g.at) : new Date(g.date + 'T23:59:59').getTime();
-/* Stand eines Managers (mit "before" in ms: nur Aktionen davor).
-   line.s: 7 Plätze, [0] = Torwart, dann von hinten nach vorn. Neu gekaufte Spieler rücken auf einen freien Platz, sonst auf die Bank. */
-function mgrState(pid, before) {
-  const s = { squad: [], cap: null, cash: MGR.BUDGET, line: { f: FORMATIONS[0], s: Array(MGR.FIELD).fill('') } };
-  (D.mgr || []).forEach(x => {
-    if (x.pid !== pid || (before && Date.parse(x.t) >= before)) return;
+/* Aufstellung und Kasse aus dem Aktions-Log EINES Managers (chronologisch); nur Aktionen vor "before" (ms).
+   line.s: 7 Plätze, [0] = Torwart. Neu gekaufte Spieler rücken auf einen freien Platz, sonst auf die Bank. */
+function gameAt(g) { return g.at ? Date.parse(g.at) : new Date(g.date + 'T23:59:59').getTime(); }
+function mgrLog(txs, before) {
+  const s = { squad: [], cap: null, cash: MGR.BUDGET, line: { f: FORMATIONS[0], s: [] } };
+  for (let i = 0; i < MGR.FIELD; i++) s.line.s.push('');
+  txs.forEach(x => {
+    if (before && Date.parse(x.t) >= before) return;
     if (x.op === 'buy') { s.squad.push(x.player); s.cash -= x.price; const i = s.line.s.indexOf(''); if (i >= 0) s.line.s[i] = x.player; }
     if (x.op === 'sell') { s.squad = s.squad.filter(p => p !== x.player); s.cash += x.price; if (s.cap === x.player) s.cap = null; s.line.s = s.line.s.map(p => p === x.player ? '' : p); }
     if (x.op === 'cap') s.cap = x.player;
-    if (x.op === 'line') { try { const l = JSON.parse(x.player); if (FORMATIONS.includes(l.f)) s.line.f = l.f; s.line.s = Array.from({ length: MGR.FIELD }, (_, i) => s.squad.includes(l.s[i]) ? l.s[i] : ''); } catch {} }
+    if (x.op === 'line') { try { const l = JSON.parse(x.player); if (FORMATIONS.indexOf(l.f) >= 0) s.line.f = l.f; s.line.s = s.line.s.map((_, i) => s.squad.indexOf(l.s[i]) >= 0 ? l.s[i] : ''); } catch (e) {} }
   });
-  s.cash = Math.round(s.cash * 10) / 10;
-  s.bench = s.squad.filter(p => !s.line.s.includes(p));
+  s.bench = s.squad.filter(p => s.line.s.indexOf(p) < 0);
   return s;
+}
+// Punkte der Aufstellung in einem Spiel: nur Feldspieler, Kapitän doppelt, TW-Position +2
+function lineupPts(txs, g) {
+  const s = mgrLog(txs, gameAt(g)); let p = 0, field = 0; const det = [];
+  s.line.s.forEach((id, i) => { if (!id) return; field++; const v = fpts(g, id, i === 0); if (v == null) return; const f = id === s.cap ? 2 : 1; p += v * f; det.push({ id, v: v * f, cap: f === 2, gk: i === 0 }); });
+  return { p, det, field, has: s.squad.length > 0 };
+}
+// Spieltagsprämie: Grundgehalt (wenn jemand auf dem Feld steht) + 0,1 Mio je Punkt
+function prizeOf(r) { return r.field ? Math.round((MGR.BASE + Math.max(0, r.p) * MGR.PER_PT) * 10) / 10 : 0; }
+function mgrCash(txs, games, before) {
+  const s = mgrLog(txs, before); let inc = 0;
+  games.forEach(g => { if (before && gameAt(g) >= before) return; inc += prizeOf(lineupPts(txs, g)); });
+  s.income = Math.round(inc * 10) / 10; s.cash = Math.round((s.cash + inc) * 10) / 10;
+  return s;
+}
+const sellPrice = mv => Math.round(mv * (1 - MGR.FEE) * 10) / 10;
+const txsOf = pid => (D.mgr || []).filter(x => x.pid === pid);
+// Zwischenspeicher – wird bei jedem neuen Datenstand (neues D-Objekt) geleert
+let _mm = { d: null, st: {} };
+function mgrState(pid, before) {
+  if (_mm.d !== D) _mm = { d: D, st: {} };
+  const k = pid + '|' + (before || ''); return _mm.st[k] ||= mgrCash(txsOf(pid), D.games, before);
 }
 const managers = () => [...new Set((D.mgr || []).map(x => x.pid))].filter(id => byId[id]);
 const joined = pid => !!pid && (D.mgr || []).some(x => x.pid === pid);   // hat "Teilnehmen" getippt
 
-// Punkte eines Managers je Spiel: nur Spieler auf dem Feld, Kapitän doppelt, Torwart-Punkte nur auf der TW-Position
+// Punkte eines Managers je Spiel (+ Monatsbonus für Spieler/Flop des Monats)
 function mgrPoints(pid, games = D.games) {
-  const per = games.map(g => {
-    const s = mgrState(pid, gameAt(g));
-    let p = 0; const det = [];
-    s.line.s.forEach((id, i) => { if (!id) return; const v = fpts(g, id, i === 0); if (v == null) return; const f = id === s.cap ? 2 : 1; p += v * f; det.push({ id, v: v * f, cap: f === 2, gk: i === 0 }); });
-    return { g, p, det, has: s.squad.length > 0 };
-  });
+  const txs = txsOf(pid);
+  const tips = tipsOf(pid), prev = prevAtMap();
+  const per = games.map(g => { const r = lineupPts(txs, g), tip = tipFor(tips, g, prev[g.id] || 0), tp = tipPts(tip, g); return { g, ...r, prize: prizeOf(r), tip, tp, has: r.has || !!tip }; });
   const months = [...new Set(games.map(g => g.date.slice(0, 7)))];
   let bonus = 0; const bon = [];
   months.forEach(m => {
     const last = D.games.filter(g => g.date.startsWith(m)).pop(); if (!last) return;
-    const s = mgrState(pid, gameAt(last)), pm = potmOf(m), fl = flopOf(m);
+    const s = mgrLog(txs, gameAt(last)), pm = potmOf(m), fl = flopOf(m);
     if (pm && s.squad.includes(pm.id)) { bonus += MGR.POTM; bon.push({ m, id: pm.id, v: MGR.POTM }); }
     if (fl && s.squad.includes(fl.id)) { bonus += MGR.FLOP; bon.push({ m, id: fl.id, v: MGR.FLOP }); }
   });
-  return { total: per.reduce((t, x) => t + x.p, 0) + bonus, per, bonus, bon };
+  return { total: per.reduce((t, x) => t + x.p + x.tp.p, 0) + bonus, per, bonus, bon };
 }
+// Bester Manager der Saison bekommt die Kick7-Karte (nur bei eindeutiger Führung mit Punkten)
+let _k7 = { d: null, id: null };
+function kick7King() {
+  if (_k7.d === D) return _k7.id;
+  const t = managers().length ? mgrTable('all') : [];
+  _k7 = { d: D, id: t[0] && t[0].pts > 0 && (!t[1] || t[1].pts < t[0].pts) ? t[0].pid : null };
+  return _k7.id;
+}
+// Verletzungspause: bei den letzten zwei Spielen mit Teams nicht dabei
+function pauseOf(id) { const tg = D.games.filter(hasTeams).slice(-2); return tg.length === 2 && tg.every(g => !teamOf(g, id)); }
+const pauseTag = id => pauseOf(id) ? '<span class="mg-pause">Pause</span>' : '';
+
+/* Tipps: "XY trifft" und Endergebnis – je richtiger Tipp +2 Punkte.
+   Ein Tipp gilt für das nächste Spiel, das nach ihm eingetragen wird. */
+const TIP = 2;
+const tipsOf = pid => txsOf(pid).filter(x => x.op === 'tip').map(x => { try { return { t: x.t, ...JSON.parse(x.player) }; } catch { return null; } }).filter(Boolean);
+function prevAtMap() {
+  const m = {}; let prev = 0;
+  D.games.slice().sort((a, b) => gameAt(a) - gameAt(b)).forEach(g => { m[g.id] = prev; prev = gameAt(g); });
+  return m;
+}
+function tipFor(tips, g, prev) { const at = gameAt(g); return tips.filter(x => { const t = Date.parse(x.t); return t >= prev && t < at; }).pop() || null; }
+function tipPts(tip, g) {
+  if (!tip) return { p: 0, s: null, r: null };
+  const s = tip.s ? g.goals.some(x => x.s === tip.s) : null, sc = hasTeams(g) ? scoreOf(g) : null;
+  const r = tip.a != null && tip.j != null && sc ? sc.alt === tip.a && sc.jung === tip.j : null;
+  return { p: (s ? TIP : 0) + (r ? TIP : 0), s, r };
+}
+// offener Tipp = nach dem zuletzt eingetragenen Spiel abgegeben
+function openTip(pid) { const last = Math.max(0, ...D.games.map(gameAt)); return tipsOf(pid).filter(x => Date.parse(x.t) >= last).pop() || null; }
+function tipCard() {
+  const o = openTip(S.me), d = S.tipDraft ||= o ? { s: o.s || '', a: o.a, j: o.j } : { s: '', a: null, j: null };
+  const same = o && (o.s || '') === d.s && o.a === d.a && o.j === d.j;
+  const num = k => `<div class="tip-num"><button data-act="tip-step" data-k="${k}" data-d="-1" aria-label="weniger">−</button><b>${d[k] == null ? '–' : d[k]}</b><button data-act="tip-step" data-k="${k}" data-d="1" aria-label="mehr">+</button></div>`;
+  return `<div class="card"><div class="card-h"><h2>Tipp fürs nächste Spiel</h2><span class="meta">je Treffer +${TIP} P</span></div>
+    <label class="tip-l">Wer trifft?</label>
+    <select class="search tip-sel" data-input="tip-s"><option value="">– kein Tipp –</option>${D.players.filter(p => p.active).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}" ${d.s === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+    <label class="tip-l">Endergebnis</label>
+    <div class="tip-res"><span class="alt">Alt</span>${num('a')}<b>:</b>${num('j')}<span class="jung">Jung</span></div>
+    <button class="btn ${same ? 'ghost' : 'gold'}" data-act="tip-save" ${same || (!d.s && d.a == null) ? 'disabled' : ''}>${same ? 'Tipp abgegeben' : 'Tipp abgeben'}</button></div>`;
+}
+
 function mgrTable(scope) {
   const games = scope === 'month' ? gamesIn('month', S.month) : D.games;
   const list = managers().map(pid => { const s = mgrState(pid); return { pid, pts: mgrPoints(pid, games).total, value: s.cash + s.squad.reduce((t, id) => t + mvNow(id), 0) }; })
@@ -95,7 +162,7 @@ function mgrJoin() {
   const n = managers().length;
   return `<div class="card mg-join">
       <div class="mg-join-cards">${D.players.filter(p => p.active && !p.guest).map(p => p.id).sort((a, b) => mvNow(b) - mvNow(a)).slice(0, 3).map((id, i) => `<div class="mgc r${i}">${cardHtml(id, { mini: true })}</div>`).join('')}</div>
-      <ul class="mg-join-list"><li><b>${MGR.BUDGET} Mio</b> Startkapital</li><li><b>${MGR.SQUAD} Spieler</b> kaufen – ${MGR.FIELD} aufs Feld, 3 auf die Bank</li><li>Punkte bei Tor, Assist, Sieg & Co.</li><li>Marktwert steigt und fällt mit der Form</li></ul>
+      <ul class="mg-join-list"><li><b>${MGR.BUDGET} Mio</b> Startkapital, Punkte bringen Geld</li><li><b>${MGR.SQUAD} Spieler</b> kaufen – ${MGR.FIELD} aufs Feld, 3 auf die Bank</li><li>Punkte bei Tor, Assist, Sieg & Co.</li><li>Marktwert steigt und fällt mit der Form</li></ul>
       <button class="btn gold" data-act="mg-join">${S.me ? 'Teilnehmen' : 'Anmelden & teilnehmen'}</button>
       ${n ? `<button class="more-btn" data-act="mg-peek">${n} Manager spielen schon mit – Tabelle ansehen</button>` : ''}
     </div>${S.mpeek ? mgrTableView() : ''}`;
@@ -110,7 +177,7 @@ function slotHtml(id, slot, s, own, label) {
   if (!id) return `<div class="mgc empty" data-slot="${slot}" ${own ? 'data-act="mview" data-v="market"' : ''}><span>${label || '+'}</span></div>`;
   const pts = last ? fpts(last, id, slot === 'f0') : null;
   return `<div class="mgc" data-slot="${slot}" data-id="${id}" ${own ? 'data-drag="1" data-act="mg-player"' : 'data-act="profile"'}>
-    ${cardHtml(id, { mini: true })}${id === s.cap ? '<i class="mg-cap">C</i>' : ''}${pts != null && slot[0] === 'f' ? `<i class="mg-pts">${pts * (id === s.cap ? 2 : 1)}</i>` : ''}<em>${mio(mvNow(id))}</em></div>`;
+    ${cardHtml(id, { mini: true })}${id === s.cap ? '<i class="mg-cap">C</i>' : ''}${pauseOf(id) ? '<i class="mg-inj">Pause</i>' : ''}${pts != null && slot[0] === 'f' ? `<i class="mg-pts">${pts * (id === s.cap ? 2 : 1)}</i>` : ''}<em>${mio(mvNow(id))}</em></div>`;
 }
 function pitchHtml(pid, own) {
   const s = mgrState(pid), rows = s.line.f.split('-').map(Number);
@@ -125,8 +192,10 @@ function mgrTeam() {
   const pts = mgrPoints(S.me), lastG = pts.per.filter(x => x.has).pop(), s = mgrState(S.me);
   return mgrHead(S.me) + `<div class="card mg-card"><div class="card-h"><h2>Aufstellung</h2><span class="meta">${s.squad.length}/${MGR.SQUAD} im Kader</span></div>
       ${pitchHtml(S.me, true)}<div class="mg-note">Karte gedrückt halten und ziehen · antippen für Kapitän oder Verkauf</div></div>
-    ${lastG ? `<div class="card"><div class="card-h"><h2>Letzter Spieltag</h2><span class="meta">${new Date(lastG.g.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} · ${lastG.p} P</span></div>
+    ${lastG ? `<div class="card"><div class="card-h"><h2>Letzter Spieltag</h2><span class="meta">${new Date(lastG.g.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} · ${lastG.p + lastG.tp.p} P · +${mio(lastG.prize)}</span></div>
+      ${lastG.tip ? `<div class="tip-out">Tipp: ${lastG.tip.s ? `${esc(short(lastG.tip.s))} trifft ${lastG.tp.s ? '✓' : '✗'}` : ''}${lastG.tip.s && lastG.tip.a != null ? ' · ' : ''}${lastG.tip.a != null ? `Alt ${lastG.tip.a}:${lastG.tip.j} Jung ${lastG.tp.r ? '✓' : lastG.tp.r === false ? '✗' : ''}` : ''}<b>+${lastG.tp.p}</b></div>` : ''}
       ${lastG.det.length ? lastG.det.sort((a, b) => b.v - a.v).map(d => `<div class="partner" data-act="profile" data-id="${d.id}">${imgTag(face(d.id), d.id)}<span>${esc(player(d.id).name)}${d.gk ? ' (TW)' : ''}${d.cap ? ' (C)' : ''}</span><b>${d.v}</b></div>`).join('') : '<div class="empty">Keiner deiner Feldspieler war dabei</div>'}</div>` : ''}
+    ${tipCard()}
     ${mgrRules()}`;
 }
 function mgrMarket() {
@@ -135,7 +204,7 @@ function mgrMarket() {
   return `<div class="mg-bar"><span>Kasse <b>${mio(s.cash)}</b></span><span>${s.squad.length}/${MGR.SQUAD} im Kader</span></div>
     <input class="search" data-input="mq" placeholder="Spieler suchen" value="${esc(S.mq || '')}" style="margin-bottom:10px">
     <div class="card" style="padding:6px 12px">${list.map(({ p, v, d }) => { const own = s.squad.includes(p.id);
-      return `<div class="mg-row"><span data-act="profile" data-id="${p.id}">${imgTag(face(p.id), p.id)}</span><div class="t" data-act="profile" data-id="${p.id}"><b>${esc(p.name)}</b><small>${trendHtml(d)} · Ø ${avgPts(p.id)} P</small></div>
+      return `<div class="mg-row"><span data-act="profile" data-id="${p.id}">${imgTag(face(p.id), p.id)}</span><div class="t" data-act="profile" data-id="${p.id}"><b>${esc(p.name)}${pauseTag(p.id)}</b><small>${trendHtml(d)} · Ø ${avgPts(p.id)} P</small></div>
         <b class="mv">${mio(v)}</b>${own ? `<button class="mg-btn own" data-act="mg-player" data-id="${p.id}">Im Kader</button>` : `<button class="mg-btn" data-act="mg-buy" data-id="${p.id}" ${s.squad.length >= MGR.SQUAD || v > s.cash + 1e-9 ? 'disabled' : ''}>Kaufen</button>`}</div>`; }).join('')}</div>`;
 }
 function avgPts(id) {
@@ -152,8 +221,8 @@ function mgrTableView() {
 }
 function mgrRules() {
   return `<details class="how"><summary>${I.info} Regeln</summary><p>Kader: ${MGR.SQUAD} Spieler, davon ${MGR.FIELD} auf dem Feld (Torwart + Formation). Nur wer auf dem Feld steht, punktet.<br>
-    Dabei +1 · Tor +4 · Assist +3 · Sieg +2 · Tor des Spiels +3 · Kapitän zählt doppelt.<br>Je kassiertes Gegentor −1 (egal wo er bei dir steht) · Spieler auf deiner TW-Position +2.<br>
-    Spieler des Monats im Kader +${MGR.POTM}, Flop des Monats −${-MGR.FLOP}.<br>Start mit ${MGR.BUDGET} Mio, jeder darf jeden kaufen – auch sich selbst. Marktwert = Punkte der letzten ${MGR.WINDOW} Spiele (das letzte zählt am meisten, nicht dabei = 0).<br>
+    Dabei +1 · Tor +4 · Assist +3 · Sieg +2 · Tor des Spiels +3 · Kapitän zählt doppelt.<br>Torwart: +4 (bei mehreren Torhütern geteilt), je Gegentor −1, zu null +3, Sieg +1 extra · Spieler auf deiner TW-Position +2.<br>
+    Spieler des Monats im Kader +${MGR.POTM}, Flop des Monats −${-MGR.FLOP}.<br>Tipp „XY trifft“ und Endergebnis: je richtig +${TIP} (gilt fürs nächste eingetragene Spiel).<br>„Pause“ = bei den letzten zwei Spielen nicht dabei. Der beste Manager bekommt die Kick7-Karte.<br>Geld: pro Spiel ${MGR.BASE} Mio Grundgehalt + ${String(MGR.PER_PT).replace('.', ',')} Mio je Punkt deiner Aufstellung. Verkaufen kostet ${Math.round(MGR.FEE * 100)} % Gebühr.<br>Start mit ${MGR.BUDGET} Mio, jeder darf jeden kaufen – auch sich selbst. Marktwert = Punkte der letzten ${MGR.WINDOW} Spiele (das letzte zählt am meisten, nicht dabei = 0).<br>
     Es zählt deine Aufstellung in dem Moment, in dem ein Spiel eingetragen oder ein Live-Spiel gestoppt wird.</p></details>`;
 }
 function openMgrTeam(pid) {
@@ -162,7 +231,7 @@ function openMgrTeam(pid) {
   openSheet(`<div class="sheet-body" style="padding-top:8px"><div class="mg-owner">${imgTag(face(pid), pid)}<div><h2>${esc(player(pid).name)}</h2><span>${tab ? `Platz ${tab.rank} · ${tab.pts} Punkte` : ''}</span></div></div>
     ${mgrHead(pid)}
     <div class="card mg-card">${pitchHtml(pid, false)}</div>
-    ${recent.length || pts.bon.length ? `<div class="card"><div class="card-h"><h2>Spieltage</h2></div>${recent.map(x => `<div class="partner"><span>${new Date(x.g.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span><b>${x.p} P</b></div>`).join('')}
+    ${recent.length || pts.bon.length ? `<div class="card"><div class="card-h"><h2>Spieltage</h2></div>${recent.map(x => `<div class="partner"><span>${new Date(x.g.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span><b>${x.p + x.tp.p} P <small style="color:var(--muted);font-weight:500">+${mio(x.prize)}</small></b></div>`).join('')}
       ${pts.bon.map(b => `<div class="partner"><span>${b.v > 0 ? I.medal : I.lantern} ${esc(short(b.id))} · ${monthLabel(b.m, false)}</span><b>${b.v > 0 ? '+' : ''}${b.v} P</b></div>`).join('')}</div>` : ''}
   </div>`, 'mgr');
 }
@@ -170,7 +239,7 @@ function openMgrPlayer(id) {
   const s = mgrState(S.me), v = mvNow(id), onField = s.line.s.includes(id);
   openSheet(`<div class="sheet-body" style="padding-top:8px"><div class="mg-owner">${imgTag(face(id), id)}<div><h2>${esc(player(id).name)}</h2><span>${mio(v)} · ${trendHtml(mvTrend(id))} · Ø ${avgPts(id)} P · ${onField ? (s.line.s[0] === id ? 'Torwart' : 'auf dem Feld') : 'Bank'}</span></div></div>
     <div class="btn-row" style="margin-top:14px">${s.cap === id ? '<button class="btn ghost" disabled>Ist Kapitän</button>' : `<button class="btn gold" data-act="mg-cap" data-id="${id}">Zum Kapitän machen</button>`}
-      <button class="btn" data-act="mg-sell" data-id="${id}">Verkaufen · ${mio(v)}</button></div>
+      <button class="btn" data-act="mg-sell" data-id="${id}">Verkaufen · ${mio(sellPrice(v))}</button></div>
     <button class="btn ghost" data-act="profile" data-id="${id}" style="margin-top:8px">Profil ansehen</button></div>`, 'mgr');
 }
 
@@ -230,10 +299,17 @@ document.addEventListener('mouseup', () => { if (drag?.mouse) dragEnd(); });
 // Nach dem Ziehen kein "Antippen" auslösen
 document.addEventListener('click', e => { if (Date.now() - dragClick < 400 && e.target.closest('.mgc')) { e.stopPropagation(); e.preventDefault(); } }, true);
 
+document.addEventListener('change', e => { if (e.target.dataset.input === 'tip-s') { S.tipDraft.s = e.target.value; render(); } });
+
 /* ---------- Aktionen ---------- */
 Object.assign(actions, {
   mview: el => { S.mview = el.dataset.v; closeSheet(true); render(); },
   'mg-peek': () => { S.mpeek = !S.mpeek; render(); },
+  'tip-step': el => { const d = S.tipDraft, k = el.dataset.k, dl = +el.dataset.d, cur = d[k]; d[k] = dl < 0 && !cur ? null : Math.min(30, (cur == null ? -1 : cur) + dl); buzz(8); render(); },
+  'tip-save': () => {
+    const d = S.tipDraft; if (d.a != null && d.j == null) d.j = 0; if (d.j != null && d.a == null) d.a = 0;
+    try { D = Store.mgr('tip', JSON.stringify({ s: d.s || '', a: d.a, j: d.j }), 0); buzz(20); toast('Tipp abgegeben – gilt fürs nächste Spiel'); render(); } catch (e) { toast(e.message); }
+  },
   'mg-join': () => {
     if (!S.me) return askLogin();
     try { D = Store.mgr('join', '', 0); S.mview = 'market'; confetti(); buzz([20, 40, 20]); toast(`Willkommen bei Kick7 – ${MGR.BUDGET} Mio warten auf dich`); render(); scrollTo(0, 0); }
@@ -251,8 +327,8 @@ Object.assign(actions, {
   },
   'mg-sell': async el => {
     const id = el.dataset.id;
-    if (!(await confirmBox('Verkaufen?', `${esc(player(id).name)} für ${mio(mvNow(id))} verkaufen.`, 'Verkaufen', true))) return;
-    try { D = await Store.mgr('sell', id, mvNow(id)); toast(`${short(id)} verkauft`); render(); }
+    if (!(await confirmBox('Verkaufen?', `${esc(player(id).name)} für ${mio(sellPrice(mvNow(id)))} verkaufen (Marktwert ${mio(mvNow(id))} minus ${Math.round(MGR.FEE * 100)} % Gebühr).`, 'Verkaufen', true))) return;
+    try { D = await Store.mgr('sell', id, sellPrice(mvNow(id))); toast(`${short(id)} verkauft`); render(); }
     catch (e) { toast(e.message); }
   },
   'mg-cap': async el => {

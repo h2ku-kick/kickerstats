@@ -288,6 +288,11 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .tile .cnt .g { background: var(--red); }
 .tile .cnt .a { background: var(--sky); color: #001634; }
 .tile .cnt .c { background: #fff; color: #001634; }
+.tile.gk { outline: 2px solid #fff; outline-offset: -2px; }
+.tbadge.gkb { background: #fff; color: #001634; }
+.gt-step { display: flex; justify-content: center; gap: 6px; margin-top: 4px; }
+.gt-step button { width: 30px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.14); font: 700 16px/1 var(--display); color: #fff; }
+.gt-warn { color: var(--gold) !important; }
 .lnk { color: var(--sky); font: inherit; text-decoration: underline; padding: 0; }
 .rank .v small.kp { display: block; font: 500 10px var(--font); color: var(--muted); text-align: right; }
 .gk-line { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
@@ -321,6 +326,17 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .tabbar button.plus.on svg { color: #fff; }
 .tabbar button.plus { border-left: 1px solid var(--line); }
 /* Manager (Kick7) */
+.mg-pause { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(225,0,38,.2); color: #ff6b82; font-size: 10.5px; font-weight: 700; vertical-align: middle; }
+.mgc .mg-inj { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); font: 700 10px/1 var(--font); font-style: normal; background: var(--red); color: #fff; padding: 3px 6px; border-radius: 6px; }
+.tip-l { display: block; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.tip-sel { margin-bottom: 12px; }
+.tip-res { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; font: 700 15px var(--display); }
+.tip-res .alt { color: var(--gold); } .tip-res .jung { color: var(--sky); }
+.tip-num { display: flex; align-items: center; gap: 6px; }
+.tip-num b { min-width: 28px; text-align: center; font: 800 26px var(--display); }
+.tip-num button { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,.1); font: 700 18px var(--display); color: #fff; }
+.tip-out { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); padding: 8px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.tip-out b { color: #fff; }
 .mg-join { text-align: center; padding: 18px 16px; }
 .mg-join-cards { position: relative; height: 150px; margin: 0 auto 14px; width: 240px; }
 .mg-join-cards .mgc { position: absolute; top: 0; }
@@ -666,6 +682,7 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 /* ============ Spielerkarte (Wappenform) ============ */
 .fc { position: relative; width: 270px; height: 410px; color: var(--ink); background-size: 100% 100%; background-repeat: no-repeat; }
 .fc-tag { position: absolute; top: 12px; right: 22px; z-index: 2; font: 700 10px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; background: var(--ink); color: #111; }
+.t-kick7 .fc-tag { color: #0a3d20; background: linear-gradient(90deg, #f7e08a, #e3b95a); } .t-kick7 .ovr, .t-kick7 .fc-name { color: #f7e08a; }
 .t-potm .fc-tag { color: #3c1a6e; } .t-flop .fc-tag { color: #26401a; } .t-dream .fc-tag { color: #0b2350; } .t-inform .fc-tag { color: #15120a; }
 .fc-top { position: absolute; left: 20px; right: 20px; top: 26px; height: 168px; display: flex; gap: 8px; }
 .fc-side { width: 58px; text-align: center; padding-top: 6px; }
@@ -686,7 +703,7 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .fc-foot { position: absolute; left: 0; right: 0; top: 350px; text-align: center; font: 700 11px var(--font); letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
 .fc-shine { position: absolute; inset: 0; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; background: linear-gradient(105deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.35) 47%, rgba(255,255,255,.6) 50%, rgba(255,255,255,.35) 53%, rgba(255,255,255,0) 60%); background-size: 300% 100%; background-repeat: no-repeat; background-position: 120% 0; animation: cardShine 4.5s ease-in-out infinite; }
 .fc-shine { mix-blend-mode: screen; opacity: .68; }   /* 75 % der vorherigen Stärke */
-.t-inform .fc-shine, .t-dream .fc-shine, .t-potm .fc-shine, .t-flop .fc-shine, .t-back .fc-shine { opacity: .6; }
+.t-kick7 .fc-shine, .t-inform .fc-shine, .t-dream .fc-shine, .t-potm .fc-shine, .t-flop .fc-shine, .t-back .fc-shine { opacity: .6; }
 .t-gold .fc-shine, .t-silver .fc-shine, .t-bronze .fc-shine { mix-blend-mode: overlay; opacity: .75; }
 @keyframes cardShine { 0% { background-position: 120% 0; } 45% { background-position: -20% 0; } 100% { background-position: -20% 0; } }
 .fc-shine.tilt { animation: none; transition: background-position .12s linear; }

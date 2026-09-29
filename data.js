@@ -279,7 +279,7 @@ const Store = {
       if (has) throw new Error('Schon in deinem Kader');
       if (s.squad.length >= MGR.SQUAD) throw new Error(`Kader ist voll (${MGR.SQUAD} Spieler)`);
       if (price > s.cash + 1e-9) throw new Error('Nicht genug Geld in der Kasse');
-    } else if (op !== 'line' && op !== 'join' && !has) throw new Error('Nicht in deinem Kader');
+    } else if (op !== 'line' && op !== 'join' && op !== 'tip' && !has) throw new Error('Nicht in deinem Kader');
     return this.bg({ action: 'mgr', op, player, ...this.cred() }, () =>
       this.data.mgr.push({ t: new Date().toISOString(), day: isoDate(new Date()), pid: this.me.id, op, player, price }));
   },

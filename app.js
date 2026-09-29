@@ -91,12 +91,12 @@ function voteWindow(m) {
 function gamesIn(scope, m) { return scope === 'all' ? D.games : D.games.filter(g => g.date.startsWith(m)); }
 function computeStats(games) {
   const st = {};
-  const get = id => st[id] || (st[id] = { id, g: 0, a: 0, gp: 0, c: 0, k: 0 });
+  const get = id => st[id] || (st[id] = { id, g: 0, a: 0, gp: 0, c: 0, k: 0, cs: 0 });
   games.forEach(g => {
     const inGame = new Set();
     g.goals.forEach(x => { get(x.s).g++; inGame.add(x.s); if (x.a) { get(x.a).a++; inGame.add(x.a); } });
     inGame.forEach(id => get(id).gp++);
-    Object.entries(g.conceded || {}).forEach(([id, n]) => { const s = get(id); s.c += n; s.k++; });   // Gegentore im Tor
+    Object.entries(g.conceded || {}).forEach(([id, n]) => { const s = get(id), t = teamOf(g, id), sc = scoreOf(g); s.c += n; s.k++; if (t && sc && sc[t === 'alt' ? 'jung' : 'alt'] === 0) s.cs++; });   // im Tor
   });
   return st;
 }
@@ -167,15 +167,16 @@ function statRaw(games) {
 }
 /* Abwehr leidet unter Gegentoren und hohen Niederlagen – prozentual, nur die letzten 10 Spiele, höchstens −20 %.
    So erholt sich der Wert wieder und niemand rutscht dauerhaft in den Keller. */
-const ABW_MALUS = { WINDOW: 10, GOAL: 0.01, LOSS: 0.02, MARGIN: 3, MAX: 0.2 };
+const ABW_MALUS = { WINDOW: 10, GOAL: 0.01, LOSS: 0.02, MARGIN: 3, MAX: 0.2, CLEAN: 0.02, BONUS: 0.1 };
 function abwMalus(id, games) {
   let pen = 0;
   games.filter(g => played(g, id)).slice(-ABW_MALUS.WINDOW).forEach(g => {
     pen += (g.conceded?.[id] || 0) * ABW_MALUS.GOAL;
     const t = teamOf(g, id), w = winnerOf(g), sc = scoreOf(g);
+    if (t && sc && g.conceded && id in g.conceded && sc[t === 'alt' ? 'jung' : 'alt'] === 0) pen -= ABW_MALUS.CLEAN;   // zu null im Tor
     if (t && w && w !== 'draw' && w !== t && sc && Math.abs(sc.alt - sc.jung) >= ABW_MALUS.MARGIN) pen += ABW_MALUS.LOSS;
   });
-  return Math.min(ABW_MALUS.MAX, Math.round(pen * 100) / 100);
+  return Math.max(-ABW_MALUS.BONUS, Math.min(ABW_MALUS.MAX, Math.round(pen * 100) / 100));
 }
 function fifaOf(id, games = D.games) {
   const live = games === D.games, m = memo();
@@ -192,9 +193,9 @@ function fifaOf(id, games = D.games) {
   out.FRM = sc(rel(me.FRM, pool.map(r => r.FRM)));
   const tv = teamVals(id);
   const mal = abwMalus(id, games);
-  Object.assign(out, { TEM: tv.TEM, DRI: tv.DRI, ABW: Math.round(tv.ABW * (1 - mal)), abwMal: mal, src: tv.src, votes: tv.n, games: me.n });
+  Object.assign(out, { TEM: tv.TEM, DRI: tv.DRI, ABW: Math.min(99, Math.round(tv.ABW * (1 - mal))), abwMal: mal, src: tv.src, votes: tv.n, games: me.n });
   out.OVR = Math.round((out.TEM + out.DRI + out.ABW + out.TOR + out.VOR + out.FRM) / 6);
-  out.tier = out.OVR >= 80 ? 'gold' : out.OVR >= 65 ? 'silver' : 'bronze';
+  out.tier = out.OVR >= 75 ? 'gold' : out.OVR >= 65 ? 'silver' : 'bronze';   // wie EA FC: Bronze bis 64, Silber 65–74, Gold ab 75
   if (live) m.fifa[id] = out;
   return out;
 }
@@ -224,6 +225,7 @@ function latestFlop() {
 }
 function specialOf(id) {
   const pm = latestPotm(); if (pm && pm.id === id) return 'potm';
+  if (typeof kick7King === 'function' && kick7King() === id) return 'kick7';
   const fl = latestFlop(); if (fl && fl.id === id) return 'flop';
   if (inFormIds().includes(id)) return 'inform';
   if (dreamKing() === id) return 'dream';
@@ -237,6 +239,7 @@ const CARD_STYLE = {
   potm:   { g: ['#7b3fd1', '#3c1a6e', '#e10026'], stroke: '#e7d4ff', ink: '#ffffff', tag: 'Spieler des Monats' },
   dream:  { g: ['#5de0e6', '#1b6fb8', '#0b2350'], stroke: '#c8f6ff', ink: '#ffffff', tag: 'Traumtor' },
   flop:   { g: ['#b9e08f', '#5f8f3a', '#26401a'], stroke: '#e4f7cf', ink: '#ffffff', tag: 'Flop des Monats' },
+  kick7:  { g: ['#138a45', '#0a3d20', '#020d06'], stroke: '#e3b95a', ink: '#ffffff', pitch: true, mark: '7', tag: 'Kick7 Nr. 1' },
   back:   { g: ['#0e3a78', '#0a2b5c', '#061a3a'], stroke: '#5db7ff', ink: '#ffffff' }
 };
 const SHIELD = 'M30 3H240L267 30V338L152 399Q135 408 118 399L3 338V30Z';   // flache, leicht abgerundete Spitze
@@ -245,7 +248,10 @@ function shieldBg(c) {
   // weiche Lichtbahnen statt harter Streifen
   const stripes = c.stripes ? `<rect width="270" height="410" fill="url(#s)" clip-path="url(#c)"/>` : '';
   const sdef = c.stripes ? `<linearGradient id="s" x1="0" y1="0" x2="1" y2=".45"><stop offset="0" stop-color="${c.stripes}" stop-opacity="0"/><stop offset=".22" stop-color="${c.stripes}" stop-opacity=".16"/><stop offset=".4" stop-color="${c.stripes}" stop-opacity="0"/><stop offset=".62" stop-color="${c.stripes}" stop-opacity=".12"/><stop offset=".85" stop-color="${c.stripes}" stop-opacity="0"/></linearGradient>` : '';
-  return shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.g[0]}"/><stop offset=".55" stop-color="${c.g[1]}"/><stop offset="1" stop-color="${c.g[2]}"/></linearGradient>${sdef}<clipPath id="c"><path d="${SHIELD}"/></clipPath></defs><path d="${SHIELD}" fill="url(#g)"/>${stripes}<path d="${SHIELD}" fill="none" stroke="${c.stroke}" stroke-opacity=".65" stroke-width="4"/></svg>`);
+  // Kick7: gemähter Rasen + große goldene 7 im Hintergrund
+  const pitch = c.pitch ? `<g clip-path="url(#c)" fill="#fff" fill-opacity=".05">${[0, 1, 2, 3, 4, 5].map(i => `<rect y="${i * 70}" width="270" height="35"/>`).join('')}</g><g clip-path="url(#c)" fill="none" stroke="#e3b95a" stroke-opacity=".22" stroke-width="2"><circle cx="135" cy="205" r="52"/><path d="M3 205H267"/></g>` : '';
+  const mark = c.mark ? `<text x="262" y="392" text-anchor="end" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="250" fill="#e3b95a" fill-opacity=".13" clip-path="url(#c)">${c.mark}</text>` : '';
+  return shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.g[0]}"/><stop offset=".55" stop-color="${c.g[1]}"/><stop offset="1" stop-color="${c.g[2]}"/></linearGradient>${sdef}<clipPath id="c"><path d="${SHIELD}"/></clipPath></defs><path d="${SHIELD}" fill="url(#g)"/>${pitch}${mark}${stripes}<path d="${SHIELD}" fill="none" stroke="${c.stroke}" stroke-opacity=".65" stroke-width="4"/></svg>`);
 }
 const SHIELD_MASK = shieldUri(`<svg xmlns="http://www.w3.org/2000/svg" width="270" height="410" viewBox="0 0 270 410"><path d="${SHIELD}" fill="#000"/></svg>`);
 function cardHtml(id, opts = {}) {
@@ -533,7 +539,7 @@ function openProfile(id, dir) {
         return `<div class="card rec-card"><div class="card-h"><h2>Bilanz</h2><span class="meta">${r.n} Spiele mit Team</span></div>
           <div class="streaks"><div class="${r.w > r.l ? 'hot' : ''}"><b>${r.w}</b><span>Siege</span></div><div><b>${r.d}</b><span>Unentschieden</span></div><div><b>${r.l}</b><span>Niederlagen</span></div></div>
           <div class="rec-line"><b>${r.pct} %</b> Siegquote · meist ${TEAMS[main].name} (${r[main]}×)</div></div>`; })()}
-      ${s.k ? `<div class="card"><div class="card-h"><h2>Im Tor</h2><span class="meta">${rk('c').replace('im Team', 'meiste Gegentore')}</span></div><div class="streaks" style="margin:0"><div><b>${s.c}</b><span>Gegentore</span></div><div><b>${s.k}</b><span>Spiele im Tor</span></div><div><b>${(s.c / s.k).toFixed(1).replace('.', ',')}</b><span>pro Spiel</span></div></div></div>` : ''}
+      ${s.k ? `<div class="card"><div class="card-h"><h2>Im Tor</h2><span class="meta">${rk('c').replace('im Team', 'meiste Gegentore')}</span></div><div class="streaks" style="margin:0"><div><b>${s.c}</b><span>Gegentore</span></div><div><b>${s.k}</b><span>Spiele im Tor</span></div><div class="${s.cs ? 'hot' : ''}"><b>${s.cs}</b><span>zu null</span></div></div></div>` : ''}
       <div class="card"><div class="card-h"><h2>Formkurve</h2><span class="meta">letzte ${Math.min(5, D.games.length)} Spiele</span></div>${formChart(id)}</div>
       <div class="card"><div class="card-h"><h2>Verlauf</h2><span class="meta">pro Monat</span></div>${monthChart(id)}</div>
       <div class="card"><div class="partners"><div><h4>Vorlagen von</h4>${plist(from)}</div><div><h4>Legt auf für</h4>${plist(to)}</div></div></div>
@@ -571,7 +577,7 @@ function openFifa(id) {
       <div class="fc-face back">${cardBack(id)}</div>
     </div></div>
     <div class="btn-row"><button class="btn gold" data-act="fifa-share" data-id="${id}">${I.share} Teilen</button>${canRate(id) ? `<button class="btn ghost" data-act="rate-open" data-id="${id}">Bewerten</button>` : ''}</div>
-    <details class="how"><summary>${I.info} Wie entstehen die Werte?</summary><p>TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>ABW sinkt je Gegentor um 1 % und je Niederlage mit 3+ Toren Abstand um 2 % (letzte 10 Spiele, höchstens −20 %)${f.abwMal ? ` – aktuell −${Math.round(f.abwMal * 100)} %` : ''}.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte. Karte antippen zum Umdrehen.</p></details>
+    <details class="how"><summary>${I.info} Wie entstehen die Werte?</summary><p>TEM, DRI, ABW: ${f.votes ? `Startwert plus ${f.votes} Bewertung${f.votes === 1 ? '' : 'en'} der Mannschaft` : f.src === 'start' ? 'Startwerte' : 'noch keine Werte (50)'} – jede Bewertung fließt ein, der Startwert zählt wie ${BASE_WEIGHT} Bewertungen.<br>ABW sinkt je Gegentor um 1 % und je Niederlage mit 3+ Toren Abstand um 2 %, steigt je Spiel zu null im Tor um 2 % (letzte 10 Spiele, −20 % bis +10 %)${f.abwMal ? ` – aktuell ${f.abwMal > 0 ? '−' : '+'}${Math.round(Math.abs(f.abwMal) * 100)} %` : ''}.<br>TOR, VOR: halb pro Spiel, halb Gesamtzahl inkl. früherer Tore/Assists · FRM: Punkte der letzten 5 Spiele. Der Beste im Team bekommt 99. Gesamt = Durchschnitt aller sechs Werte. Karte antippen zum Umdrehen.</p></details>
   </div>`, 'fifa');
   askMotion(); startShine();
 }
@@ -795,28 +801,36 @@ function draftScore(d) {
   return d.res && d.resLive && sc.alt === d.resLive.alt && sc.jung === d.resLive.jung ? { alt: d.res.alt, jung: d.res.jung } : sc;
 }
 const concSum = d => Object.values(d.conceded || {}).reduce((s, n) => s + n, 0);
-/* Gegentore verteilen: Wer stand im Tor? Erstes Antippen bekommt alle offenen Gegentore,
-   jedes weitere Antippen verschiebt eins vom Torwart mit den meisten zum angetippten. */
+/* Wer stand im Tor? Antippen macht einen Spieler zum Torwart (auch mit 0 Gegentoren).
+   Ein Torwart bekommt alle Gegentore seines Teams automatisch, bei mehreren verteilt man sie mit +/−. */
+const oppGoals = (d, t) => draftScore(d)[t === 'alt' ? 'jung' : 'alt'];
+function syncConc(d) {
+  const c = d.conceded ||= {};
+  ['alt', 'jung'].forEach(t => { const ks = d.teams[t].filter(x => x in c); if (ks.length === 1) c[ks[0]] = oppGoals(d, t); });
+}
 function concTap(d, t, id) {
-  const c = d.conceded ||= {}, total = draftScore(d)[t === 'alt' ? 'jung' : 'alt'];
-  const mine = d.teams[t].filter(x => c[x]);
-  const used = mine.reduce((s, x) => s + c[x], 0);
-  if (!total) return 'Keine Gegentore für ' + TEAMS[t].name;
-  if (used < total) c[id] = (c[id] || 0) + (mine.length ? 1 : total - used);
-  else {
-    const from = mine.filter(x => x !== id).sort((a, b) => c[b] - c[a])[0];
-    if (!from) return 'Alle Gegentore sind schon bei ' + short(id);
-    c[from]--; if (!c[from]) delete c[from]; c[id] = (c[id] || 0) + 1;
-  }
+  const c = d.conceded ||= {};
+  if (id in c) delete c[id]; else c[id] = 0;
+  syncConc(d);
+  return null;
+}
+function concStep(d, t, id, delta) {
+  const c = d.conceded ||= {}, used = d.teams[t].reduce((s, x) => s + (c[x] || 0), 0);
+  if (delta > 0 && used >= oppGoals(d, t)) return `Alle ${oppGoals(d, t)} Gegentore sind verteilt`;
+  c[id] = Math.max(0, (c[id] || 0) + delta);
   return null;
 }
 function concReset(d, t) { const c = d.conceded || {}; d.teams[t].forEach(x => delete c[x]); }
 function concHtml(d, src) {
-  const sc = draftScore(d), c = d.conceded || {};
+  syncConc(d);
+  const c = d.conceded;
   return ['alt', 'jung'].map(t => {
-    const total = sc[t === 'alt' ? 'jung' : 'alt'], used = d.teams[t].reduce((s, x) => s + (c[x] || 0), 0);
-    return `<div class="team-sec ${t}"><h3>${TEAMS[t].name} <span>${used}/${total} Gegentore${used ? ` · <button class="lnk" data-act="gt-reset" data-t="${t}" data-src="${src}">zurücksetzen</button>` : ''}</span></h3>
-      ${total ? `<div class="tgrid">${d.teams[t].map(id => `<div class="tile ${c[id] ? '' : 'out'}" data-act="gt-tap" data-t="${t}" data-id="${id}" data-src="${src}">${imgTag(face(id), id)}<b>${esc(short(id))}</b><div class="cnt">${c[id] ? `<span class="c">${c[id]}</span>` : ''}</div></div>`).join('')}</div>` : '<div class="empty">Kein Gegentor</div>'}</div>`;
+    const total = oppGoals(d, t), ks = d.teams[t].filter(x => x in c), used = ks.reduce((s, x) => s + c[x], 0), multi = ks.length > 1;
+    return `<div class="team-sec ${t}"><h3>${TEAMS[t].name} <span class="${ks.length && used !== total ? 'gt-warn' : ''}">${ks.length ? `${used}/${total} Gegentore` : `${total} Gegentore · wer war im Tor?`}${ks.length ? ` · <button class="lnk" data-act="gt-reset" data-t="${t}" data-src="${src}">zurücksetzen</button>` : ''}</span></h3>
+      <div class="tgrid">${d.teams[t].map(id => { const k = id in c;
+        return `<div class="tile ${k ? 'gk' : 'out'}" data-act="gt-tap" data-t="${t}" data-id="${id}" data-src="${src}">${imgTag(face(id), id)}<b>${esc(short(id))}</b>
+          <div class="cnt">${k ? `<span class="c">${c[id]}</span>` : ''}</div>
+          ${k && multi ? `<div class="gt-step"><button data-act="gt-step" data-d="-1" data-t="${t}" data-id="${id}" data-src="${src}" aria-label="weniger">−</button><button data-act="gt-step" data-d="1" data-t="${t}" data-id="${id}" data-src="${src}" aria-label="mehr">+</button></div>` : ''}</div>`; }).join('')}</div></div>`;
   }).join('');
 }
 const tileHtml = (id, extra = '', cnt = null, act = 'tile') => `<div class="tile ${extra}" data-act="${act}" data-id="${id}" id="t-${id}">${imgTag(face(id), id)}<b>${esc(short(id))}</b>
@@ -861,7 +875,7 @@ function stepResult(d) {
   return `<div class="entry"><div class="card">
       <div class="scoreboard"><div class="sb-t alt"><b>ALT</b><small>${win === 'alt' ? 'Sieger' : '&nbsp;'}</small></div><div class="sb-s">${sc.alt} : ${sc.jung}</div><div class="sb-t jung"><b>JUNG</b><small>${win === 'jung' ? 'Sieger' : '&nbsp;'}</small></div></div>
       ${win === 'draw' ? '<div class="empty" style="text-align:center;margin-top:6px">Unentschieden</div>' : ''}</div>
-    <div class="prompt"><span class="step">3</span><span style="flex:1">Wer stand im Tor? <span style="color:var(--muted);font-weight:400">Antippen · nochmal tippen verschiebt ein Gegentor</span></span></div>
+    <div class="prompt"><span class="step">3</span><span style="flex:1">Wer stand im Tor? <span style="color:var(--muted);font-weight:400">Antippen · bei mehreren Gegentore mit +/− verteilen</span></span></div>
     ${concHtml(d, 'admin')}<div style="height:14px"></div></div>`;
 }
 function adminLists() {
@@ -901,7 +915,8 @@ function draft() {
 }
 function draftReady(d) { return d.noTeams ? d.goals.length > 0 : d.teams.alt.length && d.teams.jung.length; }
 function cleanConceded(d) {
-  const out = {}; Object.entries(d.conceded || {}).forEach(([id, n]) => { if (n > 0 && (d.teams.alt.includes(id) || d.teams.jung.includes(id))) out[id] = n; });
+  syncConc(d);
+  const out = {}; Object.entries(d.conceded || {}).forEach(([id, n]) => { if (n >= 0 && (d.teams.alt.includes(id) || d.teams.jung.includes(id))) out[id] = n; });
   return out;
 }
 function saveDraft() { ls.set('h2ku-draft', S.draft); }
@@ -1185,6 +1200,12 @@ const actions = {
     const d = el.dataset.src === 'live' ? liveState() : draft();
     const m = concTap(d, el.dataset.t, el.dataset.id); if (m) return toast(m);
     buzz(10);
+    if (el.dataset.src === 'live') { saveLive(d); openLive(); } else { saveDraft(); render(); }
+  },
+  'gt-step': el => {
+    const d = el.dataset.src === 'live' ? liveState() : draft();
+    const m = concStep(d, el.dataset.t, el.dataset.id, +el.dataset.d); if (m) return toast(m);
+    buzz(8);
     if (el.dataset.src === 'live') { saveLive(d); openLive(); } else { saveDraft(); render(); }
   },
   'gt-reset': el => {
