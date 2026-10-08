@@ -11,6 +11,7 @@ function buildArticle(ctx, variant) {
   const [y, m] = month.split('-').map(Number);
   const mName = MONTHS[m - 1];
   const nm = id => player(id).name;
+  const nms = o => o.ids.map(nm).join(' und '), je = o => o.ids.length > 1 ? 'je ' : '';   // Gleichstand: mehrere Gewinner
   const first = id => player(id).name.split(' ')[0];
   const last = id => { const p = player(id).name.split(' '); return p.slice(1).join(' ') || p[0]; };
 
@@ -192,15 +193,15 @@ function buildArticle(ctx, variant) {
 
   // ---------- Flop ----------
   if (flop) paras.push({ h: 'Der Flop des Monats', t: one([
-    `Weniger rund lief es für ${nm(flop.id)}: Die Mannschaft wählte ihn mit ${flop.votes} von ${flop.total} Stimmen zum Flop des Monats. Kopf hoch, der nächste Monat kommt bestimmt!`,
-    `Und dann gibt es noch ${nm(flop.id)}, von der Mannschaft zum Flop des Monats gewählt (${flop.votes} von ${flop.total} Stimmen). Wir sind sicher: Das Comeback folgt.`
+    `Weniger rund lief es für ${nms(flop)}: Die Mannschaft wählte ${flop.ids.length > 1 ? 'sie' : 'ihn'} mit ${je(flop)}${flop.votes} von ${flop.total} Stimmen zum Flop des Monats. Kopf hoch, der nächste Monat kommt bestimmt!`,
+    `Und dann gibt es noch ${nms(flop)}, von der Mannschaft zum Flop des Monats gewählt (${je(flop)}${flop.votes} von ${flop.total} Stimmen). Wir sind sicher: Das Comeback folgt.`
   ]) });
 
   // ---------- Abschluss ----------
   paras.push({ h: null, t: potm
     ? one([
-        `Zum Spieler des Monats wählte die Mannschaft ${nm(potm.id)} (${potm.votes} von ${potm.total} Stimmen). Glückwunsch!`,
-        `Die Mannschaft hat entschieden: Spieler des Monats ist ${nm(potm.id)} mit ${potm.votes} von ${potm.total} Stimmen.`
+        `Zum Spieler des Monats wählte die Mannschaft ${nms(potm)} (${je(potm)}${potm.votes} von ${potm.total} Stimmen). Glückwunsch!`,
+        `Die Mannschaft hat entschieden: Spieler des Monats ${potm.ids.length > 1 ? 'sind' : 'ist'} ${nms(potm)} mit ${je(potm)}${potm.votes} von ${potm.total} Stimmen.`
       ])
     : one([
         `Wer wird Spieler des Monats? Die Abstimmung in der App läuft – jede Stimme zählt.`,
@@ -212,7 +213,7 @@ function buildArticle(ctx, variant) {
     kicker: `Trainingskick · ${mName} ${y}`,
     headline, deck, lead, paras, table,
     photo: potm ? potm.id : S1.id,
-    caption: potm ? `Spieler des Monats: ${nm(potm.id)}` : `Torjäger des Monats: ${nm(S1.id)} (${tore(S1.g)})`,
+    caption: potm ? `Spieler des Monats: ${nms(potm)}` : `Torjäger des Monats: ${nm(S1.id)} (${tore(S1.g)})`,
     potm, flop,
     dateline: new Date(y, m, 0).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }),
     issue: `Ausgabe ${mName} ${y}`

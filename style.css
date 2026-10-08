@@ -95,6 +95,10 @@ main { padding: 14px 16px calc(var(--tab-h) + var(--safe-b) + 24px); max-width: 
 .month-step button { width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.06); font-size: 20px; display: grid; place-items: center; }
 .month-step button:disabled { opacity: .25; }
 .month-step .m { font: 700 22px var(--display); text-transform: uppercase; letter-spacing: .04em; text-align: center; }
+.month-chips { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.month-chips::-webkit-scrollbar { display: none; }
+.month-chips button { flex: 0 0 auto; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid var(--line); font-weight: 600; font-size: 13px; color: var(--muted); }
+.month-chips button.on { background: var(--red); border-color: var(--red); color: #fff; }
 .month-step .m small { display: block; font: 500 12px var(--font); color: var(--muted); text-transform: none; letter-spacing: 0; }
 
 /* ---------- KPI strip ---------- */

@@ -15,7 +15,7 @@ const THIS_MONTH = isoDate(TODAY).slice(0, 7);
 const S = {
   tab: 'home',
   scope: ls.get('h2ku-scope', 'all'),
-  month: THIS_MONTH,
+  month: voteWindow(shiftMonth(THIS_MONTH, -1)).open ? shiftMonth(THIS_MONTH, -1) : THIS_MONTH,   // in der Abstimmungswoche: Vormonat
   showAll: {},
   filter: '',
   pw: ls.get('h2ku-pw', null),
@@ -224,9 +224,9 @@ function latestFlop() {
   return null;
 }
 function specialOf(id) {
-  const pm = latestPotm(); if (pm && pm.id === id) return 'potm';
+  const pm = latestPotm(); if (pm && pm.ids.includes(id)) return 'potm';
   if (typeof kick7King === 'function' && kick7King() === id) return 'kick7';
-  const fl = latestFlop(); if (fl && fl.id === id) return 'flop';
+  const fl = latestFlop(); if (fl && fl.ids.includes(id)) return 'flop';
   if (inFormIds().includes(id)) return 'inform';
   if (dreamKing() === id) return 'dream';
   return null;
@@ -300,7 +300,8 @@ function ago(iso) {
 function flopOf(m) {
   if (!voteWindow(m).closed) return null;
   const r = voteResult(m, 'flop');
-  return r.winner && byId[r.winner.id] ? { id: r.winner.id, votes: r.winner.n, total: r.total, month: m } : null;
+  const ws = r.winners.filter(x => byId[x.id]);
+  return ws.length ? { id: ws[0].id, ids: ws.map(x => x.id), votes: ws[0].n, total: r.total, month: m } : null;
 }
 
 function voteResult(m, type = 'potm') {
@@ -308,12 +309,13 @@ function voteResult(m, type = 'potm') {
   const c = {};
   votes.filter(v => v.pick).forEach(v => c[v.pick] = (c[v.pick] || 0) + 1);
   const list = Object.entries(c).map(([id, n]) => ({ id, n })).sort((a, b) => b.n - a.n);
-  return { total: votes.length, list, winner: list[0] && (!list[1] || list[1].n < list[0].n) ? list[0] : list[0] };
+  // Gleichstand an der Spitze: alle mit gleich vielen Stimmen gewinnen gemeinsam
+  return { total: votes.length, list, winner: list[0], winners: list.filter(x => x.n === list[0]?.n) };
 }
 function potmOf(m) {
   if (!voteWindow(m).closed) return null;
   const r = voteResult(m);
-  return r.winner ? { id: r.winner.id, votes: r.winner.n, total: r.total, month: m } : null;
+  return r.winner ? { id: r.winner.id, ids: r.winners.map(x => x.id), votes: r.winner.n, total: r.total, month: m } : null;
 }
 function latestPotm() {
   for (let m = shiftMonth(THIS_MONTH, -1), i = 0; i < 24; i++, m = shiftMonth(m, -1)) { const p = potmOf(m); if (p) return p; }
@@ -360,7 +362,8 @@ function monthStepper() {
   return `<div class="month-step">
     <button data-act="month" data-v="-1" ${S.month <= min ? 'disabled' : ''} aria-label="Vormonat">‹</button>
     <div class="m">${monthLabel(S.month)}<small>${games} ${games === 1 ? 'Spiel' : 'Spiele'}</small></div>
-    <button data-act="month" data-v="1" ${S.month >= THIS_MONTH ? 'disabled' : ''} aria-label="Nächster Monat">›</button></div>`;
+    <button data-act="month" data-v="1" ${S.month >= THIS_MONTH ? 'disabled' : ''} aria-label="Nächster Monat">›</button></div>
+    <div class="month-chips">${(() => { const l = []; for (let m = THIS_MONTH; m >= min; m = shiftMonth(m, -1)) l.push(m); return l; })().map(m => `<button class="${m === S.month ? 'on' : ''}" data-act="month-set" data-v="${m}">${new Date(m + '-15T12:00').toLocaleDateString('de-DE', { month: 'short' }).replace('.', '')}</button>`).join('')}</div>`;
 }
 const demoPill = () => D.demo && !Store.online ? `<div class="demo-pill">Prototyp mit Beispieldaten</div>` : '';
 
@@ -372,7 +375,7 @@ function viewHome() {
   const assisted = games.reduce((s, g) => s + g.goals.filter(x => x.a).length, 0);
   const potm = S.scope === 'month' ? potmOf(S.month) : latestPotm();
   let html = demoPill() + `<div class="card" style="padding:12px">${seg('scope', [['all', 'Gesamt'], ['month', 'Monat']], S.scope)}${S.scope === 'month' ? monthStepper() : ''}</div>`;
-  if (potm) html += `<div class="card potm" data-act="profile" data-id="${potm.id}">${imgTag(face(potm.id), potm.id)}<div><div class="lbl">${I.medal} Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(potm.id).name)}</div><div class="sm">${potm.votes} von ${potm.total} Stimmen</div></div></div>`;
+  if (potm) html += potm.ids.map(id => `<div class="card potm" data-act="profile" data-id="${id}">${imgTag(face(id), id)}<div><div class="lbl">${I.medal} Spieler des Monats · ${monthLabel(potm.month, false)}</div><div class="nm">${esc(player(id).name)}</div><div class="sm">${potm.ids.length > 1 ? 'je ' : ''}${potm.votes} von ${potm.total} Stimmen</div></div></div>`).join('');
   html += `<div class="kpis">
     <div class="kpi"><b data-count="${games.length}">0</b><span>Spiele</span></div>
     <div class="kpi"><b data-count="${goals + (S.scope === 'all' ? D.players.reduce((n, p) => n + (p.prevG || 0), 0) : 0)}">0</b><span>Tore</span></div>
@@ -504,7 +507,7 @@ function openProfile(id, dir) {
   months.forEach(m => {
     const r = ranked(computeStats(gamesIn('month', m)), 'g');
     if (r[0] && r[0].id === id) badges.push(`Torjäger ${monthLabel(m, false)}`);
-    const pm = potmOf(m); if (pm && pm.id === id) badges.push(`${I.medal} Spieler des Monats ${monthLabel(m, false)}`);
+    const pm = potmOf(m); if (pm && pm.ids.includes(id)) badges.push(`${I.medal} Spieler des Monats ${monthLabel(m, false)}`);
   });
   const perGame = D.games.map(g => ({ g, n: g.goals.filter(x => x.s === id).length, a: g.goals.filter(x => x.a === id).length }));
   const hat = perGame.filter(x => x.n >= 3).length;
@@ -513,7 +516,7 @@ function openProfile(id, dir) {
   if (tds) badges.push(`${tds}× Tor des Spiels`);
   const sk = streakOf(id);
   if (sk.best >= 3) badges.push(`Rekord: ${sk.best} Spiele in Folge`);
-  months.forEach(m => { const f = flopOf(m); if (f && f.id === id) badges.push(`${I.lantern} Flop ${monthLabel(m, false)}`); });
+  months.forEach(m => { const f = flopOf(m); if (f && f.ids.includes(id)) badges.push(`${I.lantern} Flop ${monthLabel(m, false)}`); });
   const bestGames = perGame.filter(x => x.n + x.a > 0).sort((a, b) => (b.n + b.a) - (a.n + a.a) || b.g.date.localeCompare(a.g.date)).slice(0, 3);
 
   const body = `<div class="prof-hero">${imgTag(portrait(id), id)}
@@ -695,10 +698,10 @@ function voteCard(type) {
   if (w.closed) {
     if (!vr.total) h += `<div class="empty">Für ${monthLabel(m, false)} wurde nicht abgestimmt.</div>`;
     else {
-      const win = vr.list[0];
-      h += type === 'potm'
-        ? `<div class="card potm" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><div class="lbl">Gewählt von der Mannschaft</div><div class="nm">${esc(player(win.id).name)}</div><div class="sm">${win.n} von ${vr.total} Stimmen</div></div></div>`
-        : `<div class="flop" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><b>${esc(player(win.id).name)}</b><p>${win.n} von ${vr.total} Stimmen – Kopf hoch!</p></div></div>`;
+      const je = vr.winners.length > 1 ? 'je ' : '';
+      h += vr.winners.map(win => type === 'potm'
+        ? `<div class="card potm" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><div class="lbl">Gewählt von der Mannschaft</div><div class="nm">${esc(player(win.id).name)}</div><div class="sm">${je}${win.n} von ${vr.total} Stimmen</div></div></div>`
+        : `<div class="flop" style="margin-bottom:12px" data-act="profile" data-id="${win.id}">${imgTag(face(win.id), win.id)}<div><b>${esc(player(win.id).name)}</b><p>${je}${win.n} von ${vr.total} Stimmen – Kopf hoch!</p></div></div>`).join('');
       h += `<div class="results r-${type}">${vr.list.slice(0, 6).map(r => `<div class="r">${imgTag(face(r.id), r.id)}<div class="bar"><i data-w="${Math.round(r.n / vr.total * 100)}"></i><span>${esc(player(r.id).name)}</span></div><span class="pc">${Math.round(r.n / vr.total * 100)}%</span></div>`).join('')}</div>`;
     }
   } else if (w.open) {
@@ -999,6 +1002,7 @@ function buzz(ms = 25) { try { navigator.vibrate && navigator.vibrate(ms); } cat
 const actions = {
   tab: el => { S.tab = el.dataset.v; closeSheet(true); scrollTo(0, 0); render(true); },
   scope: el => { S.scope = el.dataset.v; ls.set('h2ku-scope', S.scope); render(); },
+  'month-set': el => { S.month = el.dataset.v; S.voteSel = {}; S.voteOpen = {}; render(); },
   month: el => { S.month = shiftMonth(S.month, +el.dataset.v); S.voteSel = {}; S.voteOpen = {}; render(); },
   more: el => { S.showAll[el.dataset.v] = !S.showAll[el.dataset.v]; render(); },
   profile: el => { buzz(10); openProfile(el.dataset.id, el.dataset.dir); },

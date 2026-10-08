@@ -93,8 +93,8 @@ function mgrPoints(pid, games = D.games) {
   months.forEach(m => {
     const last = D.games.filter(g => g.date.startsWith(m)).pop(); if (!last) return;
     const s = mgrLog(txs, gameAt(last)), pm = potmOf(m), fl = flopOf(m);
-    if (pm && s.squad.includes(pm.id)) { bonus += MGR.POTM; bon.push({ m, id: pm.id, v: MGR.POTM }); }
-    if (fl && s.squad.includes(fl.id)) { bonus += MGR.FLOP; bon.push({ m, id: fl.id, v: MGR.FLOP }); }
+    if (pm) pm.ids.filter(id => s.squad.includes(id)).forEach(id => { bonus += MGR.POTM; bon.push({ m, id, v: MGR.POTM }); });
+    if (fl) fl.ids.filter(id => s.squad.includes(id)).forEach(id => { bonus += MGR.FLOP; bon.push({ m, id, v: MGR.FLOP }); });
   });
   return { total: per.reduce((t, x) => t + x.p + x.tp.p, 0) + bonus, per, bonus, bon };
 }
